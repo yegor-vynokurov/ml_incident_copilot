@@ -4,7 +4,7 @@ from app.llm.base import (
     LLMProvider,
     LLMProviderError,
 )
-from app.llm.provider import OpenAIProvider
+from app.llm.openai_provider import OpenAIProvider
 
 
 __all__ = [
