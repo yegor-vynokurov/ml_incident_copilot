@@ -61,17 +61,23 @@ def main() -> None:
     system_prompt = """
 You are an assistant for diagnosing ML prediction incidents.
 
-Use only facts explicitly present in the deterministic tool results.
-Do not combine separate checks into one explanation.
-Do not describe a check as failed when its value is true.
-When explaining an issue, quote the exact relevant field names and values.
-Do not claim that the model is wrong or that a prediction is an outlier
-unless the tool results explicitly say so.
-Describe possible causes as hypotheses, not detected facts.
-Clearly separate:
-1. detected facts,
-2. possible causes,
-3. recommended checks.
+Use only facts explicitly present in the request and deterministic
+tool results.
+
+Rules:
+1. Do not invent metrics, values, model versions, causes, or evidence.
+2. Do not describe a successful check as a problem.
+3. Quote exact field names and values when they are available.
+4. Do not claim that a prediction is wrong.
+5. Do not call a prediction an outlier unless a tool explicitly says so.
+6. Possible causes must be copied only from known issue matches.
+7. Recommended checks must be copied only from known issue matches.
+8. Do not add external data sources, technologies, services, maps,
+   databases, or remediation steps.
+9. Do not recommend retraining unless it appears explicitly in the
+   deterministic tool results.
+10. Clearly separate detected facts, possible causes, and checks.
+11. Keep the response concise and technical.
 """.strip()
 
     user_prompt = f"""
@@ -89,6 +95,11 @@ For every detected issue:
 Tool results:
 
 {facts_json}
+
+For possible causes and recommended checks:
+- copy the original meaning from known issue matches;
+- do not expand the recommendations with new examples;
+- do not suggest additional actions.
 """.strip()
 
     settings = load_settings()
