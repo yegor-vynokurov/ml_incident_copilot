@@ -10,6 +10,9 @@ from app.llm.base import (
 )
 from app.schemas import LLMResponse
 
+from app.config import Settings
+
+
 
 class OpenAIProvider:
     provider_name = "openai"
@@ -127,3 +130,18 @@ class OpenAIProvider:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
         )
+
+
+
+
+
+
+def create_llm_provider(
+    settings: Settings,
+) -> OpenAIProvider:
+    return OpenAIProvider(
+        model=settings.openai_model,
+        api_key=settings.openai_api_key,
+        timeout_seconds=settings.llm_timeout_seconds,
+        max_retries=settings.llm_max_retries,
+    )
