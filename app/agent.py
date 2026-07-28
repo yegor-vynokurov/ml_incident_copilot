@@ -7,6 +7,7 @@ from app.llm.base import LLMProvider
 from app.schemas import (
     AgentRun,
     AgentStep,
+    IncidentReport,
     KnownIssue,
     LocationStats,
     ModelMetadata,
@@ -24,6 +25,10 @@ from app.tools.model_registry import (
 )
 from app.tools.prediction_analyzer import (
     analyze_prediction,
+)
+
+from app.report_validation import (
+    validate_report_grounding,
 )
 
 
@@ -226,10 +231,18 @@ class MLIncidentAgent:
         llm_response = (
             self._dependencies
             .llm_provider
-            .generate(
+            .generate_structured(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
+                response_model=IncidentReport,
             )
+        )
+
+        validate_report_grounding(
+            report=llm_response.parsed,
+            request_id=request.request_id,
+            expected_issue_codes=issue_codes,
+            steps=steps,
         )
 
         status = (
