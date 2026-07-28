@@ -1,0 +1,16 @@
+[
+  {
+    "location": "district_07",
+    "median_price_per_area": 4.2,
+    "p10_price_per_area": 2.3,
+    "p90_price_per_area": 7.8,
+    "sample_size": 184
+  },
+  {
+    "location": "district_08",
+    "median_price_per_area": 5.1,
+    "p10_price_per_area": 2.9,
+    "p90_price_per_area": 8.4,
+    "sample_size": 26
+  }
+]
