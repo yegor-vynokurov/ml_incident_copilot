@@ -115,3 +115,50 @@ class LLMResponse(BaseModel):
 
     input_tokens: int | None = None
     output_tokens: int | None = None
+
+
+ToolName = Literal[
+    "validate_input",
+    "get_model_metadata",
+    "analyze_prediction",
+    "search_known_issues",
+]
+
+
+class AgentStep(BaseModel):
+    """
+    Note about one step of agent
+
+    status:
+    - executed: tool was executed;
+    - skipped: agent decided to not call the tool.
+    """
+
+    tool_name: ToolName
+    status: Literal["executed", "skipped"]
+    reason: str
+
+    result: ToolResult | None = None
+
+
+class AgentRun(BaseModel):
+    """
+    Full result of the total run of the agent
+    """
+
+    request_id: str
+
+    status: Literal[
+        "completed",
+        "completed_with_issues",
+    ]
+
+    issue_codes: list[str] = Field(
+        default_factory=list
+    )
+
+    steps: list[AgentStep] = Field(
+        default_factory=list
+    )
+
+    llm_response: LLMResponse
