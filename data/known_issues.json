@@ -1,0 +1,87 @@
+[
+  {
+    "issue_id": "input_data_contradiction",
+    "title": "Contradictory access-related fields",
+    "trigger_codes": [
+      "road_access_conflict"
+    ],
+    "possible_causes": [
+      "Incorrect source data",
+      "API field mapping error",
+      "Outdated derived feature"
+    ],
+    "recommended_checks": [
+      "Verify the source record",
+      "Check the field mapping",
+      "Recalculate the derived landlocked feature"
+    ]
+  },
+  {
+    "issue_id": "model_routing_error",
+    "title": "Incorrect model selected for the request",
+    "trigger_codes": [
+      "model_location_mismatch",
+      "unknown_model_version"
+    ],
+    "possible_causes": [
+      "Incorrect routing logic",
+      "Outdated model configuration",
+      "Invalid model version in the request"
+    ],
+    "recommended_checks": [
+      "Check model routing rules",
+      "Verify the active model registry",
+      "Repeat the request with the correct model version"
+    ]
+  },
+  {
+    "issue_id": "prediction_outlier",
+    "title": "Prediction is outside the expected regional range",
+    "trigger_codes": [
+      "prediction_below_reference_range",
+      "prediction_above_reference_range"
+    ],
+    "possible_causes": [
+      "Unusual property characteristics",
+      "Incorrect input values",
+      "Insufficient training coverage"
+    ],
+    "recommended_checks": [
+      "Compare the request with nearby training examples",
+      "Verify area and location fields",
+      "Review model coverage for this feature range"
+    ]
+  },
+  {
+    "issue_id": "sparse_reference_data",
+    "title": "Regional reference data is sparse",
+    "trigger_codes": [
+      "sparse_location_data"
+    ],
+    "possible_causes": [
+      "Low number of historical records",
+      "Rare property characteristics"
+    ],
+    "recommended_checks": [
+      "Review the regional sample size",
+      "Compare with neighboring regions",
+      "Increase uncertainty in the final report"
+    ]
+  },
+  {
+    "issue_id": "unsupported_area_range",
+    "title": "The request is outside the model training range",
+    "trigger_codes": [
+      "area_outside_model_range"
+    ],
+    "possible_causes": [
+      "The property is outside the training distribution",
+      "Incorrect area value"
+    ],
+    "recommended_checks": [
+      "Verify the area value",
+      "Use a model that supports this area range",
+      "Flag the prediction as out-of-distribution"
+    ]
+  }
+]
