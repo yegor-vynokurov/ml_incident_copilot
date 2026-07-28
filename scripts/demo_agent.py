@@ -68,6 +68,16 @@ def main() -> None:
     print("\nAGENT RESPONSE\n")
     print(result.llm_response.text)
 
+
+    print('\nSTRUCTURED TEXT\n')
+    print(
+        result.llm_response
+        .parsed
+        .model_dump_json(
+            indent=2,
+        )
+    )
+
     print("\nISSUE CODES\n")
 
     for issue_code in result.issue_codes:

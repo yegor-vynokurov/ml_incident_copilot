@@ -1,8 +1,12 @@
+import pytest
+
 from app.schemas import IncidentReport
 
 from app.llm.base import (
     LLMStructuredOutputError,
 )
+
+from app.llm import OpenAIProvider, OllamaProvider
 
 class FakeStructuredMessage:
     '''fake response'''
@@ -129,3 +133,19 @@ class InvalidStructuredResponse:
 class InvalidStructuredClient:
     def chat(self, **kwargs):
         return InvalidStructuredResponse()
+
+
+def test_ollama_rejects_invalid_structured_output():
+    provider = OllamaProvider(
+        model="test-model",
+        client=InvalidStructuredClient(),
+    )
+
+    with pytest.raises(
+        LLMStructuredOutputError
+    ):
+        provider.generate_structured(
+            system_prompt="Use facts.",
+            user_prompt="Create report.",
+            response_model=IncidentReport,
+        )

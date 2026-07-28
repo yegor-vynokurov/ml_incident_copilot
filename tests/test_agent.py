@@ -1,31 +1,24 @@
 from datetime import date
+from typing import TypeVar
+
+import pytest
+from pydantic import BaseModel
 
 from app.agent import (
     AgentDependencies,
     MLIncidentAgent,
 )
+from app.report_validation import (
+    ReportGroundingError,
+)
 from app.schemas import (
+    IncidentReport,
     KnownIssue,
     LLMResponse,
     LocationStats,
     ModelMetadata,
     PredictionRequest,
-)
-
-from app.schemas import (
-    IncidentReport,
-    LLMResponse,
     StructuredLLMResponse,
-)
-
-from typing import TypeVar
-
-from pydantic import BaseModel
-
-import pytest
-
-from app.report_validation import (
-    ReportGroundingError,
 )
 
 StructuredModelT = TypeVar(
@@ -52,25 +45,11 @@ class FakeLLMProvider:
         system_prompt: str,
         user_prompt: str,
     ) -> LLMResponse:
-        self.calls.append(
-            {
-                "system_prompt": system_prompt,
-                "user_prompt": user_prompt,
-            }
-        )
-
         return LLMResponse(
-            text=(
-                "The request requires engineering "
-                "review."
-            ),
+            text="Fake text response.",
             provider="fake",
             model="fake-model",
-            request_id="fake-request",
-            input_tokens=100,
-            output_tokens=20,
         )
-
 
     def generate_structured(
         self,
@@ -112,8 +91,6 @@ class FakeLLMProvider:
             input_tokens=100,
             output_tokens=40,
         )
-
-
 
 
 def create_valid_incident_report_data(
@@ -171,10 +148,10 @@ def create_valid_incident_report_data(
                     }
                 ],
                 "possible_causes": [
-                    "Incorrect input values",
+                    "Unusual property characteristics",
                 ],
                 "recommended_checks": [
-                    "Verify area and location fields",
+                    "Compare with regional examples",
                 ],
             },
         ],
@@ -256,8 +233,70 @@ def create_test_dependencies(
         llm_provider=provider,
     )
 
+
+def create_unknown_location_report_data(
+    request_id: str,
+) -> dict:
+    return {
+        "request_id": request_id,
+        "status": "needs_review",
+        "summary": (
+            "The request location and model routing "
+            "require review."
+        ),
+        "findings": [
+            {
+                "issue_code": "unsupported_location",
+                "explanation": (
+                    "The request location is not "
+                    "supported."
+                ),
+                "evidence_refs": [
+                    {
+                        "tool_name": "validate_input",
+                        "issue_code": (
+                            "unsupported_location"
+                        ),
+                    }
+                ],
+                "possible_causes": [],
+                "recommended_checks": [],
+            },
+            {
+                "issue_code": (
+                    "model_location_mismatch"
+                ),
+                "explanation": (
+                    "The selected model does not "
+                    "match the request location."
+                ),
+                "evidence_refs": [
+                    {
+                        "tool_name": (
+                            "get_model_metadata"
+                        ),
+                        "issue_code": (
+                            "model_location_mismatch"
+                        ),
+                    }
+                ],
+                "possible_causes": [],
+                "recommended_checks": [],
+            },
+        ],
+    }
+
+
+
+
 def test_agent_runs_required_tools():
-    provider = FakeLLMProvider()
+    provider = FakeLLMProvider(
+        structured_data=(
+            create_valid_incident_report_data(
+                "REQ-TEST-1"
+            )
+        )
+    )
 
     dependencies = create_test_dependencies(
         provider
@@ -308,7 +347,13 @@ def test_agent_runs_required_tools():
     assert len(provider.calls) == 1
 
 def test_agent_passes_verified_facts_to_llm():
-    provider = FakeLLMProvider()
+    provider = FakeLLMProvider(
+        structured_data=(
+            create_valid_incident_report_data(
+                "REQ-TEST-2"
+            )
+        )
+    )
 
     agent = MLIncidentAgent(
         create_test_dependencies(
@@ -353,7 +398,13 @@ def test_agent_passes_verified_facts_to_llm():
 
 
 def test_agent_skips_prediction_analysis_for_unknown_location():
-    provider = FakeLLMProvider()
+    provider = FakeLLMProvider(
+        structured_data=(
+            create_unknown_location_report_data(
+                "REQ-TEST-3"
+            )
+        )
+    )
 
     agent = MLIncidentAgent(
         create_test_dependencies(
@@ -389,9 +440,14 @@ def test_agent_skips_prediction_analysis_for_unknown_location():
         in prediction_step.reason.lower()
     )
 
-
 def test_agent_skips_issue_search_when_no_issues():
-    provider = FakeLLMProvider()
+    provider = FakeLLMProvider(
+        structured_data=(
+            create_ok_report_data(
+                "REQ-TEST-4"
+            )
+        )
+    )
 
     dependencies = create_test_dependencies(
         provider
@@ -419,10 +475,7 @@ def test_agent_skips_issue_search_when_no_issues():
     issue_search_step = next(
         step
         for step in result.steps
-        if (
-            step.tool_name
-            == "search_known_issues"
-        )
+        if step.tool_name == "search_known_issues"
     )
 
     assert issue_search_step.status == "skipped"
