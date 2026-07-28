@@ -1,0 +1,26 @@
+[
+  {
+    "model_version": "district_07_v3",
+    "location": "district_07",
+    "training_date": "2026-06-15",
+    "validation_smape": 18.4,
+    "supported_area_range": [300, 12000],
+    "is_active": true
+  },
+  {
+    "model_version": "district_08_v2",
+    "location": "district_08",
+    "training_date": "2026-05-20",
+    "validation_smape": 21.7,
+    "supported_area_range": [250, 10000],
+    "is_active": true
+  },
+  {
+    "model_version": "district_07_v2",
+    "location": "district_07",
+    "training_date": "2026-02-10",
+    "validation_smape": 24.1,
+    "supported_area_range": [300, 10000],
+    "is_active": false
+  }
+]
