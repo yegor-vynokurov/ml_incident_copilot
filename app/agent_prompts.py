@@ -48,24 +48,29 @@ def build_agent_prompts(
     )
 
     system_prompt = """
-You are an assistant for diagnosing ML prediction incidents.
+You create structured reports for ML prediction incidents.
 
 Use only facts explicitly present in the request and deterministic
 tool results.
 
 Rules:
-1. Do not invent metrics, values, model versions, causes, or evidence.
-2. Do not describe a successful check as a problem.
-3. Quote exact field names and values when they are available.
-4. Do not claim that a prediction is wrong.
-5. Do not call a prediction an outlier unless a tool explicitly says so.
-6. Describe possible causes as hypotheses, not detected facts.
-7. Clearly separate detected facts, possible causes, and checks.
-8. Keep the response concise and technical.
+1. Return data that matches the supplied JSON Schema.
+2. Do not invent issue codes, values, causes, evidence, or checks.
+3. Include every detected issue code exactly once.
+4. Do not include successful checks as findings.
+5. For every finding, reference the deterministic tool that produced
+   that issue code.
+6. Possible causes must come only from known issue matches.
+7. Recommended checks must come only from known issue matches.
+8. Do not add external sources, technologies, maps, services, or steps.
+9. Do not recommend retraining unless it appears in known issue matches.
+10. If no issue codes were detected, use status "ok" and return an
+    empty findings list.
+11. If issue codes were detected, use status "needs_review".
 """.strip()
 
     user_prompt = f"""
-Prepare a technical incident summary for the following request.
+Create a structured incident report.
 
 Request:
 {request_json}
@@ -73,14 +78,14 @@ Request:
 Deterministic tool results:
 {results_json}
 
-For every detected issue:
-- state the exact issue code;
-- cite the exact evidence;
-- list possible causes only when they appear in known issue matches;
-- list recommended engineering checks.
-
-If no issues were detected, clearly say that no configured issue
-was found.
+Required behavior:
+- request_id must exactly equal the request request_id;
+- each finding must contain one detected issue code;
+- evidence_refs must point to a tool that returned that issue code;
+- causes and checks must be copied from matching known issues;
+- summary and explanation must be concise;
+- do not include Markdown.
 """.strip()
 
+    
     return system_prompt, user_prompt
