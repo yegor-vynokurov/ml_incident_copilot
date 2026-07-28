@@ -1,18 +1,27 @@
-from typing import Any
+from typing import Any, TypeVar
 
 import openai
 from openai import OpenAI
+from pydantic import BaseModel
+
 
 from app.llm.base import (
     LLMConfigurationError,
     LLMEmptyResponseError,
     LLMProviderError,
+    LLMStructuredOutputError,
 )
-from app.schemas import LLMResponse
+from app.schemas import (
+    LLMResponse,
+    StructuredLLMResponse,
+)
 
 from app.config import Settings
 
-
+StructuredModelT = TypeVar(
+    "StructuredModelT",
+    bound=BaseModel,
+)
 
 class OpenAIProvider:
     provider_name = "openai"
@@ -124,6 +133,93 @@ class OpenAIProvider:
 
         return LLMResponse(
             text=text,
+            provider=self.provider_name,
+            model=self.model,
+            request_id=request_id,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+    def generate_structured(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        response_model: type[StructuredModelT],
+    ) -> StructuredLLMResponse[
+        StructuredModelT
+    ]:
+        if not system_prompt.strip():
+            raise ValueError(
+                "system_prompt cannot be empty."
+            )
+
+        if not user_prompt.strip():
+            raise ValueError(
+                "user_prompt cannot be empty."
+            )
+
+        try:
+            response = self._client.responses.parse(
+                model=self.model,
+                input=[
+                    {
+                        "role": "system",
+                        "content": system_prompt,
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt,
+                    },
+                ],
+                text_format=response_model,
+            )
+
+        except openai.APIError as exc:
+            raise LLMProviderError(
+                f"OpenAI request failed: "
+                f"{type(exc).__name__}"
+            ) from exc
+
+        parsed = response.output_parsed
+
+        if parsed is None:
+            raise LLMStructuredOutputError(
+                "OpenAI did not return a parsed "
+                "structured response."
+            )
+
+        raw_text = (
+            response.output_text or ""
+        ).strip()
+
+        usage = getattr(
+            response,
+            "usage",
+            None,
+        )
+
+        input_tokens = (
+            getattr(usage, "input_tokens", None)
+            if usage is not None
+            else None
+        )
+
+        output_tokens = (
+            getattr(usage, "output_tokens", None)
+            if usage is not None
+            else None
+        )
+
+        request_id = getattr(
+            response,
+            "_request_id",
+            None,
+        )
+
+        return StructuredLLMResponse(
+            raw_text=raw_text,
+            parsed=parsed,
             provider=self.provider_name,
             model=self.model,
             request_id=request_id,
