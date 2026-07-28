@@ -105,4 +105,13 @@ class KnownIssue(BaseModel):
     recommended_checks: list[str]
 
 
+class LLMResponse(BaseModel):
+    text: str
 
+    provider: str
+    model: str
+
+    request_id: str | None = None
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
