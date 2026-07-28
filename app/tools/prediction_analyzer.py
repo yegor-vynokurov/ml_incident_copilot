@@ -146,9 +146,8 @@ def analyze_prediction(
                 2,
             ),
             "price_band": price_band,
-            "reference_sample_size": (
-                stats.sample_size
-            ),
+            "reference_sample_size": stats.sample_size,
             "issue_codes": issue_codes,
+            "evidence": evidence,
         },
     )
