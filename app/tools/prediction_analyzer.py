@@ -90,6 +90,39 @@ def analyze_prediction(
     if stats.sample_size < SPARSE_SAMPLE_THRESHOLD:
         issue_codes.append("sparse_location_data")
 
+
+    evidence: list[dict] = []
+
+    if price_band == "below_reference_range":
+        evidence.append(
+            {
+                "issue_code": "prediction_below_reference_range",
+                "fields": {
+                    "predicted_price_per_area": round(
+                        predicted_price_per_area,
+                        4,
+                    ),
+                    "p10_price_per_area": (
+                        stats.p10_price_per_area
+                    ),
+                    "median_price_per_area": (
+                        stats.median_price_per_area
+                    ),
+                    "deviation_from_median_pct": round(
+                        deviation_from_median_pct,
+                        2,
+                    ),
+                    "reference_sample_size": (
+                        stats.sample_size
+                    ),
+                },
+                "description": (
+                    "The predicted price per area is below "
+                    "the configured regional p10 reference."
+                ),
+            }
+        )
+
     return ToolResult(
         tool_name="analyze_prediction",
         success=True,
