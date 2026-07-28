@@ -61,18 +61,30 @@ def main() -> None:
     system_prompt = """
 You are an assistant for diagnosing ML prediction incidents.
 
-Use only the facts provided by deterministic Python tools.
-Do not invent metrics, model versions, causes, or evidence.
-Clearly separate detected facts from possible explanations.
+Use only facts explicitly present in the deterministic tool results.
+Do not combine separate checks into one explanation.
+Do not describe a check as failed when its value is true.
+When explaining an issue, quote the exact relevant field names and values.
+Do not claim that the model is wrong or that a prediction is an outlier
+unless the tool results explicitly say so.
+Describe possible causes as hypotheses, not detected facts.
+Clearly separate:
+1. detected facts,
+2. possible causes,
+3. recommended checks.
 """.strip()
 
     user_prompt = f"""
-Review the following tool results.
+Review the following deterministic tool results.
 
-Write a short technical summary:
-1. What problems were detected?
-2. What evidence supports them?
-3. Which checks should an engineer perform next?
+Write a concise technical summary.
+
+For every detected issue:
+- state the exact issue code;
+- cite the exact evidence from tool results;
+- list possible causes only if they are present in known issue matches;
+- list recommended checks;
+- do not mention successful checks as problems.
 
 Tool results:
 
