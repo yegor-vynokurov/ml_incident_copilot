@@ -1,6 +1,15 @@
-from typing import Protocol
+from typing import Protocol, TypeVar
+from pydantic import BaseModel 
 
-from app.schemas import LLMResponse
+from app.schemas import (
+    LLMResponse,
+    StructuredLLMResponse,
+)
+
+StructuredModelT = TypeVar(
+    "StructuredModelT",
+    bound=BaseModel,
+)
 
 
 class LLMProviderError(RuntimeError):
@@ -14,17 +23,31 @@ class LLMConfigurationError(LLMProviderError):
 class LLMEmptyResponseError(LLMProviderError):
     """Model does not return text."""
 
+class LLMStructuredOutputError(
+    LLMProviderError
+):
+    """
+    Model does not return answer as in needed schema.
+    """
+
+
 
 class LLMProvider(Protocol):
-    """
-    Common interface for any llm provider.
-    Inherit Protocol and check if the provider has generate method
-    """
-
     def generate(
         self,
         *,
         system_prompt: str,
         user_prompt: str,
     ) -> LLMResponse:
+        ...
+
+    def generate_structured(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        response_model: type[StructuredModelT],
+    ) -> StructuredLLMResponse[
+        StructuredModelT
+    ]:
         ...

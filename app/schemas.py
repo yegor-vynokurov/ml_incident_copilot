@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -141,6 +141,100 @@ class AgentStep(BaseModel):
     result: ToolResult | None = None
 
 
+
+
+class EvidenceReference(BaseModel):
+    """
+    Link to the determined tool that find the problem. 
+    LLm do not calculate evidence, only show where are they
+    """
+
+    tool_name: Literal[
+        "validate_input",
+        "get_model_metadata",
+        "analyze_prediction",
+    ]
+
+    issue_code: str
+
+
+class IncidentFinding(BaseModel):
+    """
+    One problem in the report.
+    """
+
+    issue_code: str
+
+    explanation: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+    evidence_refs: list[EvidenceReference] = Field(
+        min_length=1,
+    )
+
+    possible_causes: list[str] = Field(
+        default_factory=list,
+    )
+
+    recommended_checks: list[str] = Field(
+        default_factory=list,
+    )
+
+
+class IncidentReport(BaseModel):
+    """
+    Structured result of the diagnostic
+    """
+
+    request_id: str
+
+    status: Literal[
+        "ok",
+        "needs_review",
+    ]
+
+    summary: str = Field(
+        min_length=1,
+        max_length=500,
+    )
+
+    findings: list[IncidentFinding] = Field(
+        default_factory=list,
+    )
+
+
+StructuredModelT = TypeVar(
+    "StructuredModelT",
+    bound=BaseModel,
+)
+
+
+class StructuredLLMResponse(
+    BaseModel,
+    Generic[StructuredModelT],
+):
+    """
+    Универсальный ответ LLM с валидированной моделью.
+    """
+
+    raw_text: str
+
+    parsed: StructuredModelT
+
+    provider: str
+    model: str
+
+    request_id: str | None = None
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+
+
+
+
+
 class AgentRun(BaseModel):
     """
     Full result of the total run of the agent
@@ -161,4 +255,6 @@ class AgentRun(BaseModel):
         default_factory=list
     )
 
-    llm_response: LLMResponse
+    llm_response: StructuredLLMResponse[
+        IncidentReport
+    ]
