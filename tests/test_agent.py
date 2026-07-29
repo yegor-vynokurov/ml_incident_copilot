@@ -112,16 +112,9 @@ def create_valid_incident_report_data(
                     "The configured road access "
                     "fields are inconsistent."
                 ),
-                "evidence_refs": [
-                    {
-                        "tool_name": (
-                            "validate_input"
-                        ),
-                        "issue_code": (
-                            "road_access_conflict"
-                        ),
-                    }
-                ],
+                "evidence_ref": {
+                    "tool_name": "validate_input",
+                },
                 "possible_causes": [
                     "Incorrect source data",
                 ],
@@ -137,16 +130,11 @@ def create_valid_incident_report_data(
                     "The predicted price per area "
                     "is below the configured range."
                 ),
-                "evidence_refs": [
-                    {
-                        "tool_name": (
-                            "analyze_prediction"
-                        ),
-                        "issue_code": (
-                            "prediction_below_reference_range"
-                        ),
-                    }
-                ],
+                "evidence_ref": {
+                    "tool_name": (
+                        "analyze_prediction"
+                    ),
+                },
                 "possible_causes": [
                     "Unusual property characteristics",
                 ],
@@ -156,6 +144,8 @@ def create_valid_incident_report_data(
             },
         ],
     }
+
+
 
 
 
@@ -251,14 +241,9 @@ def create_unknown_location_report_data(
                     "The request location is not "
                     "supported."
                 ),
-                "evidence_refs": [
-                    {
-                        "tool_name": "validate_input",
-                        "issue_code": (
-                            "unsupported_location"
-                        ),
-                    }
-                ],
+                "evidence_ref": {
+                    "tool_name": "validate_input",
+                },
                 "possible_causes": [],
                 "recommended_checks": [],
             },
@@ -270,21 +255,18 @@ def create_unknown_location_report_data(
                     "The selected model does not "
                     "match the request location."
                 ),
-                "evidence_refs": [
-                    {
-                        "tool_name": (
-                            "get_model_metadata"
-                        ),
-                        "issue_code": (
-                            "model_location_mismatch"
-                        ),
-                    }
-                ],
+                "evidence_ref": {
+                    "tool_name": (
+                        "get_model_metadata"
+                    ),
+                },
                 "possible_causes": [],
                 "recommended_checks": [],
             },
         ],
     }
+
+
 
 
 
@@ -548,16 +530,9 @@ def test_agent_rejects_invented_issue_code():
             "explanation": (
                 "An invented issue."
             ),
-            "evidence_refs": [
-                {
-                    "tool_name": (
-                        "validate_input"
-                    ),
-                    "issue_code": (
-                        "invented_issue"
-                    ),
-                }
-            ],
+            "evidence_ref": {
+                "tool_name": "validate_input",
+            },
             "possible_causes": [],
             "recommended_checks": [],
         }
@@ -686,3 +661,45 @@ def test_agent_accepts_empty_report_when_no_issues():
         .findings
         == []
     )
+
+
+def test_agent_rejects_wrong_evidence_tool():
+    request_id = "REQ-TEST-WRONG-TOOL"
+
+    invalid_data = (
+        create_valid_incident_report_data(
+            request_id
+        )
+    )
+
+    invalid_data["findings"][0][
+        "evidence_ref"
+    ] = {
+        "tool_name": "analyze_prediction",
+    }
+
+    provider = FakeLLMProvider(
+        structured_data=invalid_data
+    )
+
+    agent = MLIncidentAgent(
+        create_test_dependencies(
+            provider
+        )
+    )
+
+    request = PredictionRequest(
+        request_id=request_id,
+        location="district_07",
+        area=8500,
+        road_frontage=0,
+        is_landlocked=False,
+        predicted_price=12000,
+        model_version="district_07_v3",
+    )
+
+    with pytest.raises(
+        ReportGroundingError,
+        match="did not produce issue",
+    ):
+        agent.run(request)

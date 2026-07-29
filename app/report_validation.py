@@ -137,32 +137,22 @@ def validate_report_grounding(
     for finding in report.findings:
         issue_code = finding.issue_code
 
-        if not finding.evidence_refs:
+        evidence_tool = (
+            finding.evidence_ref.tool_name
+        )
+
+        allowed_tools = issue_sources.get(
+            issue_code,
+            set(),
+        )
+
+        if evidence_tool not in allowed_tools:
             raise ReportGroundingError(
-                f"No evidence reference for "
-                f"{issue_code}."
+                f"Tool {evidence_tool!r} did not produce "
+                f"issue {issue_code!r}. "
+                f"Allowed tools: "
+                f"{sorted(allowed_tools)}."
             )
-
-        for evidence_ref in (
-            finding.evidence_refs
-        ):
-            if (
-                evidence_ref.issue_code
-                != issue_code
-            ):
-                raise ReportGroundingError(
-                    "Evidence reference points to "
-                    "a different issue code."
-                )
-
-            if (
-                evidence_ref.tool_name
-                not in issue_sources[issue_code]
-            ):
-                raise ReportGroundingError(
-                    f"Tool {evidence_ref.tool_name} "
-                    f"did not produce {issue_code}."
-                )
 
         if not set(
             finding.possible_causes
@@ -183,7 +173,7 @@ def validate_report_grounding(
                 f"Unsupported recommended check "
                 f"for {issue_code}."
             )
-
+        
     if (
         not expected_issue_codes
         and report.findings

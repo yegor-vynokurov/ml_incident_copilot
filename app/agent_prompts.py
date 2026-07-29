@@ -57,16 +57,17 @@ Rules:
 1. Return data that matches the supplied JSON Schema.
 2. Do not invent issue codes, values, causes, evidence, or checks.
 3. Include every detected issue code exactly once.
-4. Do not include successful checks as findings.
-5. For every finding, reference the deterministic tool that produced
-   that issue code.
-6. Possible causes must come only from known issue matches.
-7. Recommended checks must come only from known issue matches.
-8. Do not add external sources, technologies, maps, services, or steps.
-9. Do not recommend retraining unless it appears in known issue matches.
-10. If no issue codes were detected, use status "ok" and return an
+4. Each finding must describe exactly one issue.
+5. Do not mix evidence or explanations from different issue codes.
+6. Use exactly one evidence_ref for each finding.
+7. The evidence_ref must point to the tool that directly produced
+   the finding issue_code.
+8. Possible causes must come only from known issue matches.
+9. Recommended checks must come only from known issue matches.
+10. Do not add external sources, technologies, maps, or services.
+11. If no issue codes were detected, use status "ok" and return an
     empty findings list.
-11. If issue codes were detected, use status "needs_review".
+12. If issue codes were detected, use status "needs_review".
 """.strip()
 
     user_prompt = f"""
@@ -85,6 +86,11 @@ Required behavior:
 - causes and checks must be copied from matching known issues;
 - summary and explanation must be concise;
 - do not include Markdown.
+For each finding:
+- discuss only that finding's issue_code;
+- do not include facts belonging to another finding;
+- evidence_ref must contain exactly one tool_name;
+- do not repeat issue_code inside evidence_ref.
 """.strip()
 
     

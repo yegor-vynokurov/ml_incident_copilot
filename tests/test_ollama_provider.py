@@ -9,7 +9,7 @@ from app.llm.base import (
 from app.llm import OpenAIProvider, OllamaProvider
 
 class FakeStructuredMessage:
-    '''fake response'''
+    """Fake valid structured response."""
 
     content = """
 {
@@ -20,12 +20,9 @@ class FakeStructuredMessage:
     {
       "issue_code": "road_access_conflict",
       "explanation": "Access fields are inconsistent.",
-      "evidence_refs": [
-        {
-          "tool_name": "validate_input",
-          "issue_code": "road_access_conflict"
-        }
-      ],
+      "evidence_ref": {
+        "tool_name": "validate_input"
+      },
       "possible_causes": [
         "Incorrect source data"
       ],
@@ -36,7 +33,7 @@ class FakeStructuredMessage:
   ]
 }
 """.strip()
-
+    
 
 class FakeStructuredOllamaResponse:
     message = FakeStructuredMessage()
@@ -112,11 +109,13 @@ def test_ollama_returns_structured_report():
     )
 
 class InvalidStructuredMessage:
-    '''test for incorrect json'''
+    """Invalid structured response."""
+
     content = """
 {
   "request_id": "REQ-1",
   "status": "wrong-status",
+  "summary": "Invalid report.",
   "findings": "not-a-list"
 }
 """.strip()

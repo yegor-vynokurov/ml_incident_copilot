@@ -143,11 +143,20 @@ class AgentStep(BaseModel):
 
 
 
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
 class EvidenceReference(BaseModel):
     """
-    Link to the determined tool that find the problem. 
-    LLm do not calculate evidence, only show where are they
+    Инструмент, который обнаружил проблему,
+    указанную в родительском finding.
     """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
 
     tool_name: Literal[
         "validate_input",
@@ -155,13 +164,14 @@ class EvidenceReference(BaseModel):
         "analyze_prediction",
     ]
 
-    issue_code: str
+
+    
 
 
 class IncidentFinding(BaseModel):
-    """
-    One problem in the report.
-    """
+    model_config = ConfigDict(
+        extra="forbid",
+    )
 
     issue_code: str
 
@@ -170,9 +180,7 @@ class IncidentFinding(BaseModel):
         max_length=500,
     )
 
-    evidence_refs: list[EvidenceReference] = Field(
-        min_length=1,
-    )
+    evidence_ref: EvidenceReference
 
     possible_causes: list[str] = Field(
         default_factory=list,
@@ -184,9 +192,9 @@ class IncidentFinding(BaseModel):
 
 
 class IncidentReport(BaseModel):
-    """
-    Structured result of the diagnostic
-    """
+    model_config = ConfigDict(
+        extra="forbid",
+    )
 
     request_id: str
 
@@ -203,6 +211,7 @@ class IncidentReport(BaseModel):
     findings: list[IncidentFinding] = Field(
         default_factory=list,
     )
+
 
 
 StructuredModelT = TypeVar(

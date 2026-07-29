@@ -32,6 +32,11 @@ from app.report_validation import (
 )
 
 
+from app.report_validation import (
+    ReportGroundingError,
+    validate_report_grounding,
+)
+
 @dataclass(frozen=True)
 class AgentDependencies:
     """
@@ -238,12 +243,20 @@ class MLIncidentAgent:
             )
         )
 
-        validate_report_grounding(
-            report=llm_response.parsed,
-            request_id=request.request_id,
-            expected_issue_codes=issue_codes,
-            steps=steps,
-        )
+
+
+        try:
+            validate_report_grounding(
+                report=llm_response.parsed,
+                request_id=request.request_id,
+                expected_issue_codes=issue_codes,
+                steps=steps,
+            )
+
+        except ReportGroundingError:
+            print("\nRAW STRUCTURED LLM OUTPUT\n")
+            print(llm_response.raw_text)
+            raise
 
         status = (
             "completed_with_issues"
