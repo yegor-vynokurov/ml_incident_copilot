@@ -1,0 +1,378 @@
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any, cast
+
+from app.schemas import (
+    AgentStep,
+    EvidenceReference,
+    EvidenceToolName,
+    IncidentFinding,
+    IncidentReport,
+    IssueAnalysis,
+)
+
+
+class IncidentBuildError(ValueError):
+    """
+    Determine incident report did not collected
+    """
+
+
+@dataclass(frozen=True)
+class IssueContext:
+    issue_code: str
+
+    evidence_tool: EvidenceToolName
+
+    evidence: list[dict[str, Any]]
+
+    possible_causes: list[str]
+
+    recommended_checks: list[str]
+
+
+
+EVIDENCE_TOOL_NAMES = {
+    "validate_input",
+    "get_model_metadata",
+    "analyze_prediction",
+}
+
+
+def _append_unique(
+    target: list[str],
+    values: list,
+) -> None:
+    for value in values:
+        string_value = str(value)
+
+        if string_value not in target:
+            target.append(string_value)
+
+
+def build_issue_contexts(
+    *,
+    issue_codes: set[str],
+    steps: list[AgentStep],
+) -> list[IssueContext]:
+    """
+    Creates one deterministic card for each issue code
+    """
+
+    source_by_code: dict[
+        str,
+        EvidenceToolName,
+    ] = {}
+
+    source_data_by_code: dict[
+        str,
+        dict[str, Any],
+    ] = {}
+
+    evidence_by_code: dict[
+        str,
+        list[dict[str, Any]],
+    ] = defaultdict(list)
+
+    causes_by_code: dict[
+        str,
+        list[str],
+    ] = defaultdict(list)
+
+    checks_by_code: dict[
+        str,
+        list[str],
+    ] = defaultdict(list)
+
+    for step in steps:
+        if (
+            step.status != "executed"
+            or step.result is None
+        ):
+            continue
+
+        result_data = step.result.data
+
+        if (
+            step.tool_name
+            in EVIDENCE_TOOL_NAMES
+        ):
+            raw_codes = result_data.get(
+                "issue_codes",
+                [],
+            )
+
+            if isinstance(raw_codes, list):
+                for raw_code in raw_codes:
+                    issue_code = str(
+                        raw_code
+                    )
+
+                    if (
+                        issue_code
+                        not in source_by_code
+                    ):
+                        source_by_code[
+                            issue_code
+                        ] = cast(
+                            EvidenceToolName,
+                            step.tool_name,
+                        )
+
+                        source_data_by_code[
+                            issue_code
+                        ] = result_data
+
+            raw_evidence = result_data.get(
+                "evidence",
+                [],
+            )
+
+            if isinstance(
+                raw_evidence,
+                list,
+            ):
+                for item in raw_evidence:
+                    if not isinstance(
+                        item,
+                        dict,
+                    ):
+                        continue
+
+                    evidence_code = item.get(
+                        "issue_code"
+                    )
+
+                    if evidence_code is None:
+                        continue
+
+                    evidence_by_code[
+                        str(evidence_code)
+                    ].append(item)
+
+        if (
+            step.tool_name
+            == "search_known_issues"
+        ):
+            matches = result_data.get(
+                "matches",
+                [],
+            )
+
+            if not isinstance(matches, list):
+                continue
+
+            for match in matches:
+                if not isinstance(
+                    match,
+                    dict,
+                ):
+                    continue
+
+                matched_codes = match.get(
+                    "matched_codes",
+                    [],
+                )
+
+                possible_causes = match.get(
+                    "possible_causes",
+                    [],
+                )
+
+                recommended_checks = match.get(
+                    "recommended_checks",
+                    [],
+                )
+
+                if not isinstance(
+                    matched_codes,
+                    list,
+                ):
+                    continue
+
+                for raw_code in matched_codes:
+                    issue_code = str(
+                        raw_code
+                    )
+
+                    if isinstance(
+                        possible_causes,
+                        list,
+                    ):
+                        _append_unique(
+                            causes_by_code[
+                                issue_code
+                            ],
+                            possible_causes,
+                        )
+
+                    if isinstance(
+                        recommended_checks,
+                        list,
+                    ):
+                        _append_unique(
+                            checks_by_code[
+                                issue_code
+                            ],
+                            recommended_checks,
+                        )
+
+    contexts: list[IssueContext] = []
+
+    for issue_code in sorted(
+        issue_codes
+    ):
+        evidence_tool = source_by_code.get(
+            issue_code
+        )
+
+        if evidence_tool is None:
+            raise IncidentBuildError(
+                "No deterministic source tool "
+                f"was found for {issue_code!r}."
+            )
+
+        evidence = evidence_by_code.get(
+            issue_code,
+            [],
+        )
+
+        if not evidence:
+            source_data = (
+                source_data_by_code.get(
+                    issue_code,
+                    {},
+                )
+            )
+
+            fallback_details = {
+                key: value
+                for key, value
+                in source_data.items()
+                if key != "issue_codes"
+            }
+
+            evidence = [
+                {
+                    "issue_code": issue_code,
+                    "tool_name": evidence_tool,
+                    "details": fallback_details,
+                }
+            ]
+
+        contexts.append(
+            IssueContext(
+                issue_code=issue_code,
+                evidence_tool=(
+                    evidence_tool
+                ),
+                evidence=evidence,
+                possible_causes=(
+                    causes_by_code[
+                        issue_code
+                    ]
+                ),
+                recommended_checks=(
+                    checks_by_code[
+                        issue_code
+                    ]
+                ),
+            )
+        )
+
+    return contexts
+
+
+def build_incident_report(
+    *,
+    request_id: str,
+    contexts: list[IssueContext],
+    analyses_by_code: dict[
+        str,
+        IssueAnalysis,
+    ],
+) -> IncidentReport:
+    expected_codes = {
+        context.issue_code
+        for context in contexts
+    }
+
+    if set(
+        analyses_by_code
+    ) != expected_codes:
+        raise IncidentBuildError(
+            "Issue analyses do not match "
+            "deterministic issue contexts."
+        )
+
+    findings: list[
+        IncidentFinding
+    ] = []
+
+    for context in contexts:
+        analysis = analyses_by_code[
+            context.issue_code
+        ]
+
+        findings.append(
+            IncidentFinding(
+                issue_code=(
+                    context.issue_code
+                ),
+                explanation=(
+                    analysis.explanation
+                ),
+                evidence_ref=(
+                    EvidenceReference(
+                        tool_name=(
+                            context
+                            .evidence_tool
+                        )
+                    )
+                ),
+                possible_causes=list(
+                    context.possible_causes
+                ),
+                recommended_checks=list(
+                    context
+                    .recommended_checks
+                ),
+            )
+        )
+
+    if not findings:
+        return IncidentReport(
+            request_id=request_id,
+            status="ok",
+            summary=(
+                "No configured issue "
+                "was detected."
+            ),
+            findings=[],
+        )
+
+    issue_list = ", ".join(
+        finding.issue_code
+        for finding in findings
+    )
+
+    issue_count = len(findings)
+
+    noun = (
+        "issue"
+        if issue_count == 1
+        else "issues"
+    )
+
+    summary = (
+        f"Detected {issue_count} configured "
+        f"{noun} requiring review: "
+        f"{issue_list}."
+    )
+
+    return IncidentReport(
+        request_id=request_id,
+        status="needs_review",
+        summary=summary,
+        findings=findings,
+    )

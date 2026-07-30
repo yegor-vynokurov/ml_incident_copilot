@@ -65,18 +65,42 @@ def main() -> None:
 
     result = agent.run(request)
 
-    print("\nAGENT RESPONSE\n")
-    print(result.llm_response.text)
 
+    print("\nINCIDENT REPORT\n")
 
-    print('\nSTRUCTURED TEXT\n')
     print(
-        result.llm_response
-        .parsed
-        .model_dump_json(
+        result.report.model_dump_json(
             indent=2,
         )
     )
+
+
+    print("\nLLM ANALYSIS TRACE\n")
+
+    if not result.analysis_traces:
+        print("LLM was not called.")
+
+    for trace in result.analysis_traces:
+        print(
+            f"- {trace.issue_code}: "
+            f"{trace.response.attempt_count} "
+            f"attempt(s)"
+        )
+
+        print(
+            f"  provider: "
+            f"{trace.response.provider}"
+        )
+
+        print(
+            f"  model: "
+            f"{trace.response.model}"
+        )
+
+        print(
+            f"  explanation: "
+            f"{trace.response.parsed.explanation}"
+        )
 
     print("\nISSUE CODES\n")
 

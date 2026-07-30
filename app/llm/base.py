@@ -27,9 +27,31 @@ class LLMStructuredOutputError(
     LLMProviderError
 ):
     """
-    Model does not return answer as in needed schema.
+    Answer LLM does not pass Pydantic validation.
     """
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        raw_text: str | None = None,
+        validation_errors: list[dict] | None = None,
+    ) -> None:
+        super().__init__(message)
+
+        self.raw_text = raw_text
+
+        self.validation_errors = (
+            validation_errors or []
+        )
+
+
+class LLMRepairExhaustedError(
+    LLMProviderError
+):
+    """
+    Generation and repair attempts did not give valid structured output
+    """
 
 
 class LLMProvider(Protocol):

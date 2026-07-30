@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from app.agent_prompts import (
-    build_agent_prompts,
-)
+# from app.agent_prompts import (
+#     build_agent_prompts,
+# )
 from app.llm.base import LLMProvider
 from app.schemas import (
     AgentRun,
@@ -36,6 +36,24 @@ from app.report_validation import (
     ReportGroundingError,
     validate_report_grounding,
 )
+
+from app.incident_builder import (
+    build_incident_report,
+    build_issue_contexts,
+)
+from app.issue_analysis_prompts import (
+    build_issue_analysis_prompts,
+)
+from app.llm.repair import (
+    generate_structured_with_repair,
+)
+from app.schemas import (
+    IssueAnalysis,
+    IssueAnalysisTrace,
+)
+
+
+
 
 @dataclass(frozen=True)
 class AgentDependencies:
@@ -224,39 +242,80 @@ class MLIncidentAgent:
                 )
             )
 
-        # 5. Aggregate prompts
-        system_prompt, user_prompt = (
-            build_agent_prompts(
-                request=request,
-                steps=steps,
-            )
+        # 5. Build deterministic issue cards
+        issue_contexts = build_issue_contexts(
+            issue_codes=issue_codes,
+            steps=steps,
         )
 
-        # 6. Explanation from the llm
-        llm_response = (
-            self._dependencies
-            .llm_provider
-            .generate_structured(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response_model=IncidentReport,
+        analyses_by_code: dict[
+            str,
+            IssueAnalysis,
+        ] = {}
+
+        analysis_traces: list[
+            IssueAnalysisTrace
+        ] = []
+
+        # 6. Analyze one issue per LLM call
+        for context in issue_contexts:
+            (
+                system_prompt,
+                user_prompt,
+            ) = build_issue_analysis_prompts(
+                context
             )
+
+            analysis_response = (
+                generate_structured_with_repair(
+                    provider=(
+                        self._dependencies
+                        .llm_provider
+                    ),
+                    system_prompt=(
+                        system_prompt
+                    ),
+                    user_prompt=user_prompt,
+                    response_model=(
+                        IssueAnalysis
+                    ),
+                    max_repair_attempts=1,
+                )
+            )
+
+            analyses_by_code[
+                context.issue_code
+            ] = analysis_response.parsed
+
+            analysis_traces.append(
+                IssueAnalysisTrace(
+                    issue_code=(
+                        context.issue_code
+                    ),
+                    response=(
+                        analysis_response
+                    ),
+                )
+            )
+
+        # 7. Python assembles final report
+        report = build_incident_report(
+            request_id=request.request_id,
+            contexts=issue_contexts,
+            analyses_by_code=(
+                analyses_by_code
+            ),
         )
 
-
-
-        try:
-            validate_report_grounding(
-                report=llm_response.parsed,
-                request_id=request.request_id,
-                expected_issue_codes=issue_codes,
-                steps=steps,
-            )
-
-        except ReportGroundingError:
-            print("\nRAW STRUCTURED LLM OUTPUT\n")
-            print(llm_response.raw_text)
-            raise
+        # 8. Final internal consistency check
+        validate_report_grounding(
+            report=report,
+            request_id=request.request_id,
+            expected_issue_codes=(
+                issue_codes
+            ),
+            steps=steps,
+        )
 
         status = (
             "completed_with_issues"
@@ -267,9 +326,14 @@ class MLIncidentAgent:
         return AgentRun(
             request_id=request.request_id,
             status=status,
-            issue_codes=sorted(issue_codes),
+            issue_codes=sorted(
+                issue_codes
+            ),
             steps=steps,
-            llm_response=llm_response,
+            report=report,
+            analysis_traces=(
+                analysis_traces
+            ),
         )
 
     @staticmethod

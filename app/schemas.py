@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class PredictionRequest(BaseModel):
@@ -124,6 +124,18 @@ ToolName = Literal[
     "search_known_issues",
 ]
 
+EvidenceToolName = Literal[
+    "validate_input",
+    "get_model_metadata",
+    "analyze_prediction",
+]
+
+class EvidenceReference(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    tool_name: EvidenceToolName
 
 class AgentStep(BaseModel):
     """
@@ -239,16 +251,25 @@ class StructuredLLMResponse(
 
     input_tokens: int | None = None
     output_tokens: int | None = None
+    attempt_count: int = Field(
+                                default=1,
+                                ge=1,
+                            )
 
 
+class IssueAnalysisTrace(BaseModel):
+    """
+    result of the llm-analyze for one problem.
+    """
 
+    issue_code: str
+
+    response: StructuredLLMResponse[
+        IssueAnalysis
+    ]
 
 
 class AgentRun(BaseModel):
-    """
-    Full result of the total run of the agent
-    """
-
     request_id: str
 
     status: Literal[
@@ -257,13 +278,36 @@ class AgentRun(BaseModel):
     ]
 
     issue_codes: list[str] = Field(
-        default_factory=list
+        default_factory=list,
     )
 
     steps: list[AgentStep] = Field(
-        default_factory=list
+        default_factory=list,
     )
 
-    llm_response: StructuredLLMResponse[
-        IncidentReport
-    ]
+    report: IncidentReport
+
+    analysis_traces: list[
+        IssueAnalysisTrace
+    ] = Field(
+        default_factory=list,
+    )
+
+
+
+class IssueAnalysis(BaseModel):
+    """
+    Единственная часть finding,
+    которую создаёт LLM.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    explanation: str = Field(
+        min_length=10,
+        max_length=500,
+    )
+
+

@@ -238,7 +238,9 @@ class OllamaProvider:
         except ValidationError as exc:
             raise LLMStructuredOutputError(
                 "Ollama returned JSON that does not "
-                "match the requested schema."
+                "match the requested schema.",
+                raw_text=raw_text,
+                validation_errors=exc.errors(),
             ) from exc
 
         actual_model = getattr(
