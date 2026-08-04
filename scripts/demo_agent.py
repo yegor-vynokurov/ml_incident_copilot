@@ -19,6 +19,8 @@ from app.tools.prediction_analyzer import (
     load_location_stats,
 )
 
+from app.bootstrap import build_agent
+
 
 DATA_DIR = Path("data")
 
@@ -34,34 +36,9 @@ def main() -> None:
         model_version="district_07_v3",
     )
 
-    registry = load_model_registry(
-        DATA_DIR / "model_registry.json"
-    )
 
-    stats_by_location = load_location_stats(
-        DATA_DIR / "location_stats.json"
-    )
 
-    known_issues = load_known_issues(
-        DATA_DIR / "known_issues.json"
-    )
-
-    settings = load_settings()
-
-    llm_provider = create_llm_provider(
-        settings
-    )
-
-    dependencies = AgentDependencies(
-        registry=registry,
-        stats_by_location=stats_by_location,
-        known_issues=known_issues,
-        llm_provider=llm_provider,
-    )
-
-    agent = MLIncidentAgent(
-        dependencies=dependencies
-    )
+    agent = build_agent()
 
     result = agent.run(request)
 
