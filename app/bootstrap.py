@@ -24,12 +24,17 @@ from app.tools.prediction_analyzer import (
     load_location_stats,
 )
 
+from app.llm.base import LLMProvider
+
 
 DATA_DIR = Path("data")
 
 
 
-def build_agent() -> MLIncidentAgent:
+def build_agent(
+    *,
+    llm_provider: LLMProvider | None = None,
+) -> MLIncidentAgent:
     """
     load the agent
     """
@@ -49,9 +54,13 @@ def build_agent() -> MLIncidentAgent:
 
     settings = load_settings()
 
-    llm_provider = create_llm_provider(
+    provider = (
+    llm_provider
+    if llm_provider is not None
+    else create_llm_provider(
         settings
     )
+)
 
 
     dependencies = AgentDependencies(
@@ -60,7 +69,7 @@ def build_agent() -> MLIncidentAgent:
             stats_by_location
         ),
         known_issues=known_issues,
-        llm_provider=llm_provider,
+        llm_provider=provider,
     )
 
     return MLIncidentAgent(

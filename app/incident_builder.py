@@ -2,6 +2,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, cast
 
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+)
+
 from app.schemas import (
     AgentStep,
     EvidenceReference,
@@ -9,6 +14,7 @@ from app.schemas import (
     IncidentFinding,
     IncidentReport,
     IssueAnalysis,
+    PredictionRequest,
 )
 
 
@@ -26,10 +32,36 @@ class IssueContext:
 
     evidence: list[dict[str, Any]]
 
+    relevant_evidence: dict[str, Any]
+
+    grounded_statement: str
+
     possible_causes: list[str]
 
     recommended_checks: list[str]
 
+
+
+from typing import Any
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+)
+
+
+class GroundedIssueData(BaseModel):
+    """
+    Facts that python creates especially for expalinig of the one problem
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    relevant_evidence: dict[str, Any]
+
+    grounded_statement: str
 
 
 EVIDENCE_TOOL_NAMES = {
@@ -54,6 +86,7 @@ def build_issue_contexts(
     *,
     issue_codes: set[str],
     steps: list[AgentStep],
+    request: PredictionRequest,
 ) -> list[IssueContext]:
     """
     Creates one deterministic card for each issue code
@@ -232,19 +265,25 @@ def build_issue_contexts(
                 f"was found for {issue_code!r}."
             )
 
+        source_data = (
+            source_data_by_code.get(
+                issue_code
+            )
+        )
+
+        if source_data is None:
+            raise IncidentBuildError(
+                "No deterministic source data "
+                f"was found for {issue_code!r}."
+            )
+
         evidence = evidence_by_code.get(
             issue_code,
             [],
         )
 
-        if not evidence:
-            source_data = (
-                source_data_by_code.get(
-                    issue_code,
-                    {},
-                )
-            )
 
+        if not evidence:
             fallback_details = {
                 key: value
                 for key, value
@@ -256,9 +295,19 @@ def build_issue_contexts(
                 {
                     "issue_code": issue_code,
                     "tool_name": evidence_tool,
-                    "details": fallback_details,
+                    "details": (
+                        fallback_details
+                    ),
                 }
             ]
+
+        grounded_data = (
+            build_grounded_issue_data(
+                issue_code=issue_code,
+                request=request,
+                source_data=source_data,
+            )
+        )
 
         contexts.append(
             IssueContext(
@@ -267,12 +316,20 @@ def build_issue_contexts(
                     evidence_tool
                 ),
                 evidence=evidence,
-                possible_causes=(
+                relevant_evidence=dict(
+                    grounded_data
+                    .relevant_evidence
+                ),
+                grounded_statement=(
+                    grounded_data
+                    .grounded_statement
+                ),
+                possible_causes=list(
                     causes_by_code[
                         issue_code
                     ]
                 ),
-                recommended_checks=(
+                recommended_checks=list(
                     checks_by_code[
                         issue_code
                     ]
@@ -375,4 +432,178 @@ def build_incident_report(
         status="needs_review",
         summary=summary,
         findings=findings,
+    )
+
+
+
+
+
+
+
+
+
+def build_grounded_issue_data(
+    *,
+    issue_code: str,
+    request: PredictionRequest,
+    source_data: dict[str, Any],
+) -> GroundedIssueData:
+    if issue_code == "road_access_conflict":
+        return GroundedIssueData(
+            relevant_evidence={
+                "road_frontage": (
+                    request.road_frontage
+                ),
+                "is_landlocked": (
+                    request.is_landlocked
+                ),
+            },
+            grounded_statement=(
+                "The request contains "
+                "inconsistent road-access fields: "
+                f"road_frontage="
+                f"{request.road_frontage!r} and "
+                f"is_landlocked="
+                f"{request.is_landlocked!r}."
+            ),
+        )
+
+    if issue_code == "unsupported_location":
+        return GroundedIssueData(
+            relevant_evidence={
+                "request_location": (
+                    request.location
+                ),
+            },
+            grounded_statement=(
+                "The request location "
+                f'"{request.location}" is not '
+                "supported by the configured "
+                "location registry."
+            ),
+        )
+
+    if issue_code == "model_location_mismatch":
+        metadata = source_data.get(
+            "metadata"
+        )
+
+        if not isinstance(
+            metadata,
+            dict,
+        ):
+            raise IncidentBuildError(
+                "Model metadata is missing "
+                "for model_location_mismatch."
+            )
+
+        model_location = metadata.get(
+            "location"
+        )
+
+        if not isinstance(
+            model_location,
+            str,
+        ):
+            raise IncidentBuildError(
+                "Model metadata location "
+                "is missing or is not a string."
+            )
+
+        request_location = (
+            request.location
+        )
+
+        return GroundedIssueData(
+            relevant_evidence={
+                "request_location": (
+                    request_location
+                ),
+                "model_location": (
+                    model_location
+                ),
+            },
+            grounded_statement=(
+                "The request location "
+                f'"{request_location}" does not '
+                "match the model metadata "
+                f'location "{model_location}".'
+            ),
+        )
+
+    if (
+        issue_code
+        == "prediction_below_reference_range"
+    ):
+        predicted_price_per_area = (
+            source_data.get(
+                "predicted_price_per_area"
+            )
+        )
+
+        p10_price_per_area = (
+            source_data.get(
+                "p10_price_per_area"
+            )
+        )
+
+        median_price_per_area = (
+            source_data.get(
+                "median_price_per_area"
+            )
+        )
+
+        numeric_values = (
+            predicted_price_per_area,
+            p10_price_per_area,
+            median_price_per_area,
+        )
+
+        if any(
+            not isinstance(
+                value,
+                (int, float),
+            )
+            or isinstance(
+                value,
+                bool,
+            )
+            for value in numeric_values
+        ):
+            raise IncidentBuildError(
+                "Prediction reference values "
+                "are missing or are not numeric."
+            )
+
+        return GroundedIssueData(
+            relevant_evidence={
+                "predicted_price_per_area": (
+                    predicted_price_per_area
+                ),
+                "p10_price_per_area": (
+                    p10_price_per_area
+                ),
+                "median_price_per_area": (
+                    median_price_per_area
+                ),
+            },
+            grounded_statement=(
+                "The predicted price per area "
+                f"{predicted_price_per_area} "
+                "is below the regional p10 "
+                f"value {p10_price_per_area}. "
+                "The regional median is "
+                f"{median_price_per_area}."
+            ),
+        )
+
+    return GroundedIssueData(
+        relevant_evidence={
+            "issue_code": issue_code,
+        },
+        grounded_statement=(
+            "The deterministic tools detected "
+            "the configured issue "
+            f'"{issue_code}".'
+        ),
     )

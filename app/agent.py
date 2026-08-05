@@ -246,6 +246,7 @@ class MLIncidentAgent:
         issue_contexts = build_issue_contexts(
             issue_codes=issue_codes,
             steps=steps,
+            request=request,
         )
 
         analyses_by_code: dict[
@@ -257,7 +258,7 @@ class MLIncidentAgent:
             IssueAnalysisTrace
         ] = []
 
-        # 6. Analyze one issue per LLM call
+        # 6. Analyze one issue per LLM callе
         for context in issue_contexts:
             (
                 system_prompt,

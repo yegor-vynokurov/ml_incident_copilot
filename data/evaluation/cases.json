@@ -1,0 +1,263 @@
+[
+  {
+    "case_id": "normal_prediction",
+    "title": "Valid request without incidents",
+    "tags": ["baseline", "no-issues"],
+    "request": {
+      "request_id": "EVAL-001",
+      "location": "district_07",
+      "area": 5000,
+      "road_frontage": 10,
+      "is_landlocked": false,
+      "predicted_price": 21000,
+      "model_version": "district_07_v3"
+    },
+    "expected_issue_codes": [],
+    "expected_agent_status": "completed",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "skipped"
+    },
+    "expected_evidence_tools": {},
+    "explanation_rules": []
+  },
+  {
+    "case_id": "road_access_conflict",
+    "title": "Contradictory road access fields",
+    "tags": ["input-validation", "single-issue"],
+    "request": {
+      "request_id": "EVAL-002",
+      "location": "district_07",
+      "area": 5000,
+      "road_frontage": 0,
+      "is_landlocked": false,
+      "predicted_price": 21000,
+      "model_version": "district_07_v3"
+    },
+    "expected_issue_codes": [
+      "road_access_conflict"
+    ],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "road_access_conflict": "validate_input"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "road_access_conflict",
+        "required_term_groups": [
+          ["road_frontage", "frontage"],
+          ["is_landlocked", "landlocked"],
+          ["inconsistent", "conflict", "contradictory"]
+        ],
+        "forbidden_terms": [
+          "$",
+          "USD",
+          "OpenStreetMap"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "prediction_below_range",
+    "title": "Prediction below regional reference range",
+    "tags": ["prediction-analysis", "single-issue"],
+    "request": {
+      "request_id": "EVAL-003",
+      "location": "district_07",
+      "area": 8500,
+      "road_frontage": 10,
+      "is_landlocked": false,
+      "predicted_price": 12000,
+      "model_version": "district_07_v3"
+    },
+    "expected_issue_codes": [
+      "prediction_below_reference_range"
+    ],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "prediction_below_reference_range": "analyze_prediction"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "prediction_below_reference_range",
+        "required_term_groups": [
+          ["below", "lower"],
+          ["p10", "reference", "range"]
+        ],
+        "forbidden_terms": [
+          "$",
+          "USD",
+          "OpenStreetMap"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "combined_input_and_prediction",
+    "title": "Road conflict and low prediction together",
+    "tags": ["multi-issue", "regression"],
+    "request": {
+      "request_id": "EVAL-004",
+      "location": "district_07",
+      "area": 8500,
+      "road_frontage": 0,
+      "is_landlocked": false,
+      "predicted_price": 12000,
+      "model_version": "district_07_v3"
+    },
+    "expected_issue_codes": [
+      "road_access_conflict",
+      "prediction_below_reference_range"
+    ],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "road_access_conflict": "validate_input",
+      "prediction_below_reference_range": "analyze_prediction"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "road_access_conflict",
+        "required_term_groups": [
+          ["road_frontage", "frontage"],
+          ["landlocked"],
+          ["inconsistent", "conflict", "contradictory"]
+        ],
+        "forbidden_terms": [
+          "$",
+          "USD"
+        ]
+      },
+      {
+        "issue_code": "prediction_below_reference_range",
+        "required_term_groups": [
+          ["below", "lower"],
+          ["p10", "reference", "range"]
+        ],
+        "forbidden_terms": [
+          "$",
+          "USD"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "unsupported_location",
+    "title": "Unknown location with mismatched model",
+    "tags": ["routing", "multi-issue"],
+    "request": {
+      "request_id": "EVAL-005",
+      "location": "unknown_district",
+      "area": 8500,
+      "road_frontage": 10,
+      "is_landlocked": false,
+      "predicted_price": 12000,
+      "model_version": "district_07_v3"
+    },
+    "expected_issue_codes": [
+      "unsupported_location",
+      "model_location_mismatch"
+    ],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "skipped",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "unsupported_location": "validate_input",
+      "model_location_mismatch": "get_model_metadata"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "unsupported_location",
+        "required_term_groups": [
+          ["location"],
+          ["unsupported", "not supported", "outside of supported", "undefined"]
+        ],
+        "forbidden_terms": []
+      },
+      {
+        "issue_code": "model_location_mismatch",
+        "required_term_groups": [
+            ["model"],
+            ["location"],
+            [
+            "mismatch",
+            "does not match",
+            "different"
+            ],
+            ["unknown_district"],
+            ["district_07"]
+        ],
+        "forbidden_terms": [
+            "outdated",
+            "deprecated",
+            "stale",
+            "inactive"
+        ]
+        }
+    ]
+  },
+  {
+    "case_id": "reverse_road_access_conflict",
+    "title": "Landlocked flag conflicts with positive frontage",
+    "tags": ["input-validation", "reverse-condition"],
+    "request": {
+      "request_id": "EVAL-006",
+      "location": "district_07",
+      "area": 5000,
+      "road_frontage": 10,
+      "is_landlocked": true,
+      "predicted_price": 21000,
+      "model_version": "district_07_v3"
+    },
+    "expected_issue_codes": [
+      "road_access_conflict"
+    ],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "road_access_conflict": "validate_input"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "road_access_conflict",
+        "required_term_groups": [
+          ["frontage"],
+          ["landlocked"],
+          ["inconsistent", "conflict", "contradictory"]
+        ],
+        "forbidden_terms": [
+          "$",
+          "USD"
+        ]
+      }
+    ]
+  }
+]
