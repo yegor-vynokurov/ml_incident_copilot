@@ -30,6 +30,31 @@ from app.llm.base import LLMProvider
 DATA_DIR = Path("data")
 
 
+from pathlib import Path
+
+from app.observability.store import (
+    JsonlRunStore,
+    RunStore,
+)
+
+
+
+
+
+
+
+
+def build_run_store() -> RunStore:
+    return JsonlRunStore(
+        runs_path=Path(
+            "data/runtime/runs.jsonl"
+        ),
+        feedback_path=Path(
+            "data/runtime/feedback.jsonl"
+        ),
+    )
+
+
 
 def build_agent(
     *,

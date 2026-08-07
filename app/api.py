@@ -46,6 +46,45 @@ from app.schemas import (
     PredictionRequest,
 )
 
+from datetime import (
+    datetime,
+    timezone,
+)
+from time import perf_counter
+from uuid import uuid4
+
+from fastapi import (
+    Depends,
+    FastAPI,
+    Request,
+)
+
+from app.api_models import (
+    IncidentFeedbackRequest,
+    IncidentFeedbackResponse,
+)
+
+from app.bootstrap import (
+    build_agent,
+    build_run_store,
+)
+
+from app.observability.records import (
+    build_error_run_record,
+    build_success_run_record,
+)
+
+from app.observability.schemas import (
+    IncidentFeedbackRecord,
+)
+
+from app.observability.store import (
+    RunStore,
+    RunNotFoundError
+)
+
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +123,14 @@ def get_agent(
         AgentRunner,
         agent,
     )
+
+
+
+def get_run_store(
+    request: Request,
+) -> RunStore:
+    return request.app.state.run_store
+
 
 
 AgentDependency = Annotated[
@@ -233,9 +280,12 @@ ERROR_RESPONSES = {
 }
 
 
+
+
+
 def create_app(
-    *,
     agent: AgentRunner | None = None,
+    run_store: RunStore | None = None,
 ) -> FastAPI:
     """
     Application factory.
@@ -252,6 +302,12 @@ def create_app(
             agent
             if agent is not None
             else build_agent()
+        )
+
+        app.state.run_store = (
+            run_store
+            if run_store is not None
+            else build_run_store()
         )
 
         yield
@@ -537,6 +593,44 @@ def create_app(
             retryable=False,
         )
 
+
+
+    @app.exception_handler(
+        RunNotFoundError
+    )
+    async def handle_run_not_found(
+        request: Request,
+        exc: RunNotFoundError,
+    ) -> JSONResponse:
+        trace_id = getattr(
+            request.state,
+            "trace_id",
+            None,
+        )
+
+        return JSONResponse(
+            status_code=404,
+            content=ErrorResponse(
+                error=APIError(
+                    code="run_not_found",
+                    message=str(exc),
+                    retryable=False,
+                    trace_id=trace_id,
+                    request_id=None,
+                    details={
+                        "requested_trace_id": (
+                            exc.trace_id
+                        )
+                    },
+                )
+            ).model_dump(
+                mode="json"
+            ),
+        )
+
+
+
+
     router = APIRouter(
         prefix="/v1",
     )
@@ -555,6 +649,11 @@ def create_app(
             version="0.1.0",
         )
 
+
+
+
+    
+
     @router.post(
         "/incidents/analyze",
         response_model=AgentRun,
@@ -562,17 +661,125 @@ def create_app(
         tags=["incidents"],
     )
     def analyze_incident(
-        request: Request,
         payload: PredictionRequest,
-        agent: AgentDependency,
+        request: Request,
+        agent: AgentRunner = Depends(
+            get_agent
+        ),
+        run_store: RunStore = Depends(
+            get_run_store
+        ),
     ) -> AgentRun:
+
         request.state.request_id = (
             payload.request_id
         )
+        
+        trace_id = request.state.trace_id
 
-        return agent.run(
-            payload
+        started = perf_counter()
+
+        try:
+            agent_run = agent.run(
+                payload
+            )
+
+        except Exception as exc:
+            duration_ms = (
+                perf_counter() - started
+            ) * 1000
+
+            error_record = (
+                build_error_run_record(
+                    trace_id=trace_id,
+                    request=payload,
+                    duration_ms=duration_ms,
+                    error=exc,
+                )
+            )
+
+            run_store.append_run(
+                error_record
+            )
+
+            raise
+
+        duration_ms = (
+            perf_counter() - started
+        ) * 1000
+
+        success_record = (
+            build_success_run_record(
+                trace_id=trace_id,
+                request=payload,
+                agent_run=agent_run,
+                duration_ms=duration_ms,
+            )
         )
+
+        run_store.append_run(
+            success_record
+        )
+
+        return agent_run
+
+
+    @app.post(
+        "/v1/incidents/{trace_id}/feedback",
+        response_model=(
+            IncidentFeedbackResponse
+        ),
+    )
+    def submit_incident_feedback(
+        trace_id: str,
+        payload: IncidentFeedbackRequest,
+        run_store: RunStore = Depends(
+            get_run_store
+        ),
+    ) -> IncidentFeedbackResponse:
+        existing_run = run_store.get_run(
+            trace_id
+        )
+
+        if existing_run is None:
+            raise RunNotFoundError(
+                trace_id
+            )
+
+        feedback_id = str(
+            uuid4()
+        )
+
+        record = IncidentFeedbackRecord(
+            feedback_id=feedback_id,
+            trace_id=trace_id,
+            created_at=datetime.now(
+                timezone.utc
+            ),
+            verdict=payload.verdict,
+            issue_code=payload.issue_code,
+            expected_issue_codes=(
+                payload.expected_issue_codes
+            ),
+            comment=payload.comment,
+            corrected_explanation=(
+                payload.corrected_explanation
+            ),
+        )
+
+        run_store.append_feedback(
+            record
+        )
+
+        return IncidentFeedbackResponse(
+            feedback_id=feedback_id,
+            trace_id=trace_id,
+            status="recorded",
+        )
+
+
+
+
 
 
     @app.get(

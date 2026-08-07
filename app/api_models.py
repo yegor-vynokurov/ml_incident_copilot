@@ -7,6 +7,13 @@ from pydantic import (
 )
 
 
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+)
+
+
 class HealthResponse(BaseModel):
     """
     Answer health endpoint.
@@ -65,3 +72,38 @@ class ErrorResponse(BaseModel):
     )
 
     error: APIError
+
+
+
+
+
+class IncidentFeedbackRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    verdict: Literal[
+        "correct",
+        "partially_correct",
+        "incorrect",
+    ]
+
+    issue_code: str | None = None
+
+    expected_issue_codes: list[str] | None = None
+
+    comment: str | None = Field(
+        default=None,
+        max_length=2000,
+    )
+
+    corrected_explanation: str | None = Field(
+        default=None,
+        max_length=2000,
+    )
+
+
+class IncidentFeedbackResponse(BaseModel):
+    feedback_id: str
+    trace_id: str
+    status: Literal["recorded"]

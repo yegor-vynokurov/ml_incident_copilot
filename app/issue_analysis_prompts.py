@@ -51,7 +51,9 @@ Do not infer a root cause when no approved possible causes are provided.
 Describe only the observed inconsistency.
 
 """.strip()
-
+ISSUE_ANALYSIS_PROMPT_VERSION = (
+    "grounded-explanation-v1"
+)
 
 
 
