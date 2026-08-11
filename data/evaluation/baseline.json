@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "created_at": "2026-08-11T04:13:36.116441Z",
+  "source": {
+    "mode": "live",
+    "runs": 3
+  },
+  "metrics": {
+    "hard_pass_rate": 1.0,
+    "quality_pass_rate": 1.0,
+    "first_pass_rate": 1.0,
+    "repair_rate": 0.0,
+    "median_duration_ms": null
+  },
+  "critical_cases": {
+    "model_location_mismatch": {
+      "pass_rate": 1.0
+    }
+  }
+}
