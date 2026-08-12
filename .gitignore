@@ -5,7 +5,7 @@ __pycache__
 *.pyc
 reports
 data/runtime/*.jsonl
-
+.temp
 
 data/evaluation/candidates.jsonl
 data/evaluation/case_drafts.json
