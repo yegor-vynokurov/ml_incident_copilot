@@ -1,35 +1,30 @@
 # ML Incident Copilot
 
-ML Incident Copilot is a small AI/ML engineering project for
-investigating suspicious machine-learning predictions.
+ML Incident Copilot is a compact AI/ML engineering project for investigating suspicious machine-learning predictions.
 
-It combines deterministic domain checks with a local LLM to
-produce structured, grounded incident reports.
+It combines deterministic domain checks with an LLM to produce structured, evidence-grounded incident reports. The project is intentionally designed so that the LLM does not decide what happened. Python code establishes the facts, and the LLM explains those facts in concise engineering language.
 
-The main design principle is simple:
-
-> deterministic Python code establishes the facts;
-> the LLM explains those facts.
-
-The LLM does not decide which incident occurred and does not
-construct factual report fields.
+> **Design principle:** deterministic code owns the facts; the LLM owns only the explanation.
 
 ## What the project demonstrates
 
-- Python-based agent orchestration
-- deterministic domain tools
-- local LLM integration through Ollama
-- structured LLM output with Pydantic
-- retry/repair handling
-- evidence-grounded generation
-- one-issue-per-LLM-call isolation
-- FastAPI integration
-- runtime tracing and feedback
-- deterministic and live evaluation
-- feedback-driven regression dataset growth
-- evaluation baselines
-- regression comparison
-- release quality gates
+* Python-based agent orchestration
+* deterministic validation and diagnostic tools
+* local LLM integration with Ollama
+* optional OpenAI provider support
+* structured LLM output validated with Pydantic
+* one repair attempt for invalid structured output
+* evidence-grounded generation
+* one issue per LLM call
+* Python-side assembly of the final incident report
+* FastAPI integration
+* structured API errors and trace IDs
+* runtime observability and human feedback
+* deterministic and live evaluation modes
+* feedback-driven evaluation dataset growth
+* accepted evaluation baselines
+* regression comparison
+* release policy and an automated local release gate
 
 ## Architecture
 
@@ -39,170 +34,412 @@ PredictionRequest
         v
 Deterministic tools
         |
+        +-- validate_input
+        +-- get_model_metadata
+        +-- analyze_prediction
+        +-- search_known_issues
+        |
         v
 Issue codes + verified evidence
         |
         v
-Grounded issue context
+Incident Builder
+        |
+        +-- relevant_evidence
+        +-- grounded_statement
         |
         v
-LLM explanation
+One issue = one LLM call
         |
         v
-Python-built IncidentReport
+IssueAnalysis
+(explanation only)
+        |
+        v
+Python assembles IncidentFinding objects
+        |
+        v
+Grounding / consistency validation
+        |
+        v
+IncidentReport
+```
 
-
-More detail is available in:
-
-docs/architecture.md
-
+A more detailed description is available in [`docs/architecture.md`](docs/architecture.md).
 
 ## Why grounding matters
 
-An earlier version passed broad tool output to the LLM.
+An earlier design passed broad tool output to the LLM. That gave a small local model too much nearby information and made it easier to confuse related fields.
 
-For example, a model-location issue contained both:
+For example, a model-location issue could contain:
 
+```text
 request location: unknown_district
 model location:   district_07
 model version:    district_07_v3
+```
 
-A small local model could confuse the location and model-version
-fields.
+The current architecture reduces every detected issue to:
 
-The current architecture reduces each issue to minimal verified
-evidence plus a Python-generated grounded statement before the
-LLM is called.
+* the issue code;
+* the minimal verified evidence relevant to that issue;
+* a Python-generated grounded statement.
 
-This produced stable results across repeated live evaluation runs.
+The LLM receives this reduced context and returns only an `explanation`.
 
+This design keeps issue detection and factual report construction deterministic while still using the LLM where natural-language reasoning is useful.
+
+## Main execution flow
+
+For every `PredictionRequest`, the agent:
+
+1. validates the input;
+2. checks model metadata and routing;
+3. compares the prediction with regional reference data when available;
+4. searches known issues for matching issue codes;
+5. builds deterministic issue contexts;
+6. calls the LLM once for each issue;
+7. assembles the final report in Python;
+8. validates the report against the observed evidence.
+
+If no issue is detected, the report is completed without LLM-authored incident findings.
 
 ## Quick start
 
-Create and activate a virtual environment, then install the
-project dependencies.
+### 1. Create a virtual environment
 
-The project currently uses a local Ollama provider for live LLM
-execution.
+```powershell
+python -m venv .venv
+```
 
-Make sure Ollama is running and the configured model is available.
+Activate it on Windows:
 
-Example:
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
 
+### 2. Install dependencies
+
+For runtime use:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+For development and testing:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+```
+
+### 3. Configure the project
+
+The repository includes `.env.example`.
+
+Copy it to `.env` and adjust the provider/model configuration for your environment.
+
+### 4. Prepare Ollama for local live runs
+
+Make sure Ollama is running and the configured model is available:
+
+```powershell
 ollama list
+```
 
-Run the portfolio demo:
+The current local development setup uses `phi4-mini:latest`.
 
+### 5. Run the portfolio demo
+
+```powershell
 python -m scripts.demo_portfolio
+```
 
+The demo runs a realistic incident request through the full agent pipeline and prints a structured result.
 
 ## API
 
 Start the FastAPI application:
 
+```powershell
 fastapi dev app/api.py
+```
 
-Interactive API documentation is then available through the
-FastAPI development server.
+The main endpoints are:
 
-Main endpoints:
-
+```text
 GET  /v1/health
 POST /v1/incidents/analyze
+POST /v1/incidents/{trace_id}/feedback
+```
 
-The API returns structured Pydantic responses and structured error
-objects with trace IDs.
+The API uses structured Pydantic response models, structured error responses, and trace IDs for runtime diagnostics.
 
+## LLM providers
+
+The project contains a provider abstraction under `app/llm/`.
+
+Implemented providers include:
+
+* Ollama for local execution;
+* OpenAI as an alternative provider.
+
+Provider construction is centralized in `app/llm/factory.py`.
+
+The agent itself depends on the provider interface rather than a concrete vendor implementation.
 
 ## Tests
 
-Run the full unit/integration test suite:
+Run the full test suite:
 
+```powershell
 python -m pytest -q
+```
 
+The tests cover agent behavior, deterministic tools, incident assembly, grounding, API behavior, Ollama provider handling, observability, evaluation candidates, baselines, regression comparison, release policy, and the unified release-gate runner.
 
 ## Evaluation
 
-Deterministic evaluation:
+The evaluation harness has two modes.
 
+### Deterministic evaluation
+
+```powershell
 python -m scripts.run_evaluation --mode deterministic
+```
 
-Live evaluation using the configured LLM provider:
+This mode uses deterministic/fake LLM behavior and is useful for fast correctness checks.
 
+### Live evaluation
+
+```powershell
 python -m scripts.run_evaluation --mode live
+```
 
-Evaluation reports are written under:
+This mode executes the configured real LLM provider.
 
-reports/evaluation/
+Evaluation output is written under:
 
-The harness measures both deterministic correctness and LLM
-behavior.
+```text
+reports/evaluation/<timestamp>/
+```
 
-### Release gate
+A run can include:
 
-The project contains a local release-quality gate.
+```text
+summary.json
+report.md
+cases.csv
+baseline_comparison.json
+release_gate_result.json
+```
 
-Run:
+depending on which evaluation/release commands were executed.
 
+### What the harness measures
+
+The evaluation system tracks:
+
+* hard correctness checks;
+* explanation quality checks;
+* first-pass structured-output success;
+* repair usage;
+* timing metrics;
+* token metrics when available;
+* behavior of explicitly critical cases.
+
+## Evaluation baseline
+
+The accepted baseline is stored in:
+
+```text
+data/evaluation/baseline.json
+```
+
+Its provenance is documented in:
+
+```text
+data/evaluation/BASELINE.md
+```
+
+The baseline records accepted behavior for metrics such as:
+
+* hard pass rate;
+* quality pass rate;
+* first-pass rate;
+* repair rate;
+* critical-case pass rates.
+
+A current evaluation can be compared with the baseline:
+
+```powershell
+python -m scripts.compare_evaluation_with_baseline --report <path-to-summary.json>
+```
+
+The comparison classifies tracked metrics as:
+
+```text
+SAME
+IMPROVED
+REGRESSED
+NOT_COMPARED
+```
+
+## Release gate
+
+The local release gate combines the main quality checks into one command:
+
+```powershell
 python -m scripts.run_release_gate
+```
 
-The command executes:
+It runs:
 
+```text
 pytest
-→ live evaluation
-→ baseline comparison
-→ release policy
-→ PASS / FAIL
+   |
+   v
+fresh live evaluation
+   |
+   v
+baseline comparison
+   |
+   v
+release policy
+   |
+   v
+PASS / FAIL
+```
 
-A successful release gate exits with status code 0.
+The release policy is stored in:
 
-A blocking regression exits with a non-zero status code.
+```text
+data/evaluation/release_policy.json
+```
 
-### Feedback-driven evaluation growth
+Blocking regressions produce `FAIL`. Non-blocking regressions can produce warnings.
 
-Runtime feedback is not automatically treated as ground truth.
+A successful gate returns exit code `0`; a blocking failure returns a non-zero exit code.
 
-Instead:
+## Runtime observability and feedback
 
+Runtime analysis records are stored in JSONL and linked by trace IDs.
+
+The observability layer records information such as:
+
+* request and trace identifiers;
+* outcome;
+* provider/model information;
+* prompt version;
+* duration;
+* agent result and analysis traces;
+* error metadata when a run fails.
+
+Human feedback can then be attached to a recorded run.
+
+Feedback is intentionally **not** treated as automatic ground truth.
+
+Instead, the project uses this review flow:
+
+```text
 runtime run
-→ human feedback
-→ evaluation candidate
-→ human review
-→ case draft
-→ reviewed evaluation case
+    |
+    v
+human feedback
+    |
+    v
+EvaluationCandidate
+    |
+    v
+human review
+    |
+    +-- rejected
+    |
+    `-- approved
+          |
+          v
+     evaluation case draft
+          |
+          v
+     reviewed cases.json update
+```
 
-This prevents noisy feedback from silently contaminating the
-regression dataset.
+This keeps runtime feedback useful without silently contaminating the regression dataset.
 
-### Project structure
+## Project structure
+
+```text
 app/
   agent.py
   api.py
+  api_models.py
+  bootstrap.py
+  config.py
   incident_builder.py
+  issue_analysis_prompts.py
   report_validation.py
   schemas.py
 
+  evaluation/
+    baseline_comparison.py
+    baseline_schemas.py
+    baseline_store.py
+    candidate_builder.py
+    candidate_export.py
+    candidate_schemas.py
+    candidate_store.py
+    comparison_schemas.py
+    dataset.py
+    fake_provider.py
+    release_gate.py
+    release_gate_schemas.py
+    release_gate_store.py
+    report.py
+    runner.py
+    schemas.py
+    summary_reader.py
+
   llm/
     base.py
+    factory.py
     ollama_provider.py
     openai_provider.py
     repair.py
 
-  tools/
-    ...
-
-  evaluation/
-    ...
-
   observability/
-    ...
+    bootstrap.py
+    records.py
+    schemas.py
+    store.py
+
+  tools/
+    input_validator.py
+    issue_search.py
+    model_registry.py
+    prediction_analyzer.py
+    runner.py
 
 data/
+  known_issues.json
+  location_stats.json
+  model_registry.json
+
   evaluation/
+    baseline.json
+    BASELINE.md
+    cases.json
+    release_policy.json
+
   runtime/
+    runs.jsonl
 
 scripts/
+  build_evaluation_candidates.py
+  compare_evaluation_with_baseline.py
+  create_evaluation_baseline.py
+  demo_agent.py
+  demo_llm_provider.py
   demo_portfolio.py
+  export_approved_candidates.py
   run_evaluation.py
   run_release_gate.py
 
@@ -211,21 +448,24 @@ tests/
 
 docs/
   architecture.md
+```
+
+Generated runtime and evaluation artifacts are kept separate from the core source code and are not intended to be committed as project source.
 
 ## Current limitations
 
-This is a focused prototype rather than a production incident
-management platform.
+This is a focused engineering prototype rather than a production incident-management platform.
 
 Current limitations include:
 
-a small synthetic domain dataset
-a small evaluation dataset
-local JSONL runtime storage
-a local Ollama-based live evaluation environment
-manual human review before feedback becomes an evaluation case
-no distributed persistence or production authentication
-latency is observed but is not currently a blocking release
-metric
+* a small synthetic domain dataset;
+* a small evaluation dataset;
+* local JSONL runtime persistence;
+* local Ollama-based live evaluation;
+* manual human review before feedback becomes an evaluation case;
+* no distributed persistence;
+* no production authentication/authorization layer;
+* no external queue or worker architecture;
+* latency is observed but is not currently a blocking release metric.
 
-These limitations are intentional for the current project stage.
+These constraints are intentional for the current project stage. The project focuses on reliable orchestration, grounding, evaluation, observability, and release-quality mechanics rather than infrastructure scale.

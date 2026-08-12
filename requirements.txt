@@ -1,4 +1,7 @@
+fastapi
+pydantic
 openai
 python-dotenv
-httpx2
 httpx
+httpx2
+ollama
