@@ -446,3 +446,19 @@ def save_comparison(
         + "\n",
         encoding="utf-8",
     )
+
+
+
+def load_comparison(
+    path: Path,
+) -> EvaluationComparison:
+    raw = path.read_text(
+        encoding="utf-8",
+    )
+
+    return (
+        EvaluationComparison
+        .model_validate_json(
+            raw
+        )
+    )

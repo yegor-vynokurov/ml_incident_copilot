@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "required_mode": "live",
+  "blocking_metrics": [
+    "hard_pass_rate",
+    "quality_pass_rate"
+  ],
+  "warning_metrics": [
+    "first_pass_rate",
+    "repair_rate"
+  ],
+  "block_on_critical_regression": true,
+  "block_on_missing_critical_case": true,
+  "block_on_not_compared_blocking_metric": true
+}
