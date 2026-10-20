@@ -10,6 +10,8 @@ The core rule is:
 
 > **Python determines what happened. The LLM explains why the detected issue matters.**
 
+The agent here is an explicit Python orchestration policy. There is no Codex SDK or Codex CLI integration in this repository. OpenAI Responses API support is an optional LLM provider, not a Codex agent adapter.
+
 The LLM does not decide which issue occurred and does not own factual fields in the final report.
 
 ## 2. High-level architecture
@@ -249,6 +251,8 @@ Pydantic validation
 ```
 
 The project intentionally limits repair instead of retrying indefinitely.
+
+The same single-repair path also handles focused evidence checks for sparse regional data and above-range predictions. A schema-valid explanation that omits their required evidence, or contradicts the issue, is rejected before report assembly.
 
 The resulting trace records the number of attempts so evaluation can distinguish:
 
@@ -598,7 +602,7 @@ Runtime feedback can be noisy or incomplete, so it is not automatically promoted
 
 ### Separate baseline from release policy
 
-The baseline captures accepted behavior. The policy defines what degradation is allowed.
+The baseline captures accepted behavior and the exact evaluation case IDs. The policy defines what degradation is allowed. A dataset change blocks the gate until a new baseline is accepted from three matching live reports.
 
 ### Local quality gate before CI
 
