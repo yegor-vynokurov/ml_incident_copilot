@@ -259,5 +259,187 @@
         ]
       }
     ]
+  },
+  {
+    "case_id": "sparse_location_data",
+    "title": "Regional reference contains too few samples",
+    "tags": ["prediction-analysis", "single-issue", "sparse-data"],
+    "request": {
+      "request_id": "EVAL-007",
+      "location": "district_08",
+      "area": 5000,
+      "road_frontage": 10,
+      "is_landlocked": false,
+      "predicted_price": 25500,
+      "model_version": "district_08_v2"
+    },
+    "expected_issue_codes": ["sparse_location_data"],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "sparse_location_data": "analyze_prediction"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "sparse_location_data",
+        "required_term_groups": [
+          ["26"],
+          ["sample", "record"],
+          ["30", "threshold"]
+        ],
+        "forbidden_terms": [
+          "mismatch",
+          "model metadata",
+          "model location"
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "unknown_model_version",
+    "title": "Requested model version is not registered",
+    "tags": ["model-registry", "single-issue"],
+    "request": {
+      "request_id": "EVAL-008",
+      "location": "district_07",
+      "area": 5000,
+      "road_frontage": 10,
+      "is_landlocked": false,
+      "predicted_price": 21000,
+      "model_version": "unknown_v1"
+    },
+    "expected_issue_codes": ["unknown_model_version"],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "unknown_model_version": "get_model_metadata"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "unknown_model_version",
+        "required_term_groups": [
+          ["unknown_v1"],
+          ["not found", "unknown", "not registered", "missing"]
+        ],
+        "forbidden_terms": ["inactive", "location mismatch"]
+      }
+    ]
+  },
+  {
+    "case_id": "inactive_model_version",
+    "title": "Requested model version is inactive",
+    "tags": ["model-registry", "single-issue"],
+    "request": {
+      "request_id": "EVAL-009",
+      "location": "district_07",
+      "area": 5000,
+      "road_frontage": 10,
+      "is_landlocked": false,
+      "predicted_price": 21000,
+      "model_version": "district_07_v2"
+    },
+    "expected_issue_codes": ["inactive_model_version"],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "inactive_model_version": "get_model_metadata"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "inactive_model_version",
+        "required_term_groups": [
+          ["district_07_v2"],
+          ["inactive", "not active"]
+        ],
+        "forbidden_terms": ["location mismatch", "unknown model"]
+      }
+    ]
+  },
+  {
+    "case_id": "area_outside_model_range",
+    "title": "Requested area exceeds the model training range",
+    "tags": ["model-registry", "single-issue"],
+    "request": {
+      "request_id": "EVAL-010",
+      "location": "district_07",
+      "area": 15000,
+      "road_frontage": 10,
+      "is_landlocked": false,
+      "predicted_price": 63000,
+      "model_version": "district_07_v3"
+    },
+    "expected_issue_codes": ["area_outside_model_range"],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "area_outside_model_range": "get_model_metadata"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "area_outside_model_range",
+        "required_term_groups": [
+          ["15000", "15,000"],
+          ["12000", "12,000"],
+          ["outside", "exceed", "above"]
+        ],
+        "forbidden_terms": ["location mismatch", "inactive"]
+      }
+    ]
+  },
+  {
+    "case_id": "prediction_above_range",
+    "title": "Prediction above regional reference range",
+    "tags": ["prediction-analysis", "single-issue"],
+    "request": {
+      "request_id": "EVAL-011",
+      "location": "district_07",
+      "area": 5000,
+      "road_frontage": 10,
+      "is_landlocked": false,
+      "predicted_price": 50000,
+      "model_version": "district_07_v3"
+    },
+    "expected_issue_codes": ["prediction_above_reference_range"],
+    "expected_agent_status": "completed_with_issues",
+    "expected_step_statuses": {
+      "validate_input": "executed",
+      "get_model_metadata": "executed",
+      "analyze_prediction": "executed",
+      "search_known_issues": "executed"
+    },
+    "expected_evidence_tools": {
+      "prediction_above_reference_range": "analyze_prediction"
+    },
+    "explanation_rules": [
+      {
+        "issue_code": "prediction_above_reference_range",
+        "required_term_groups": [
+          ["10.0", "10"],
+          ["7.8", "p90"],
+          ["above", "exceed", "higher"]
+        ],
+        "forbidden_terms": ["below", "location mismatch"]
+      }
+    ]
   }
 ]
