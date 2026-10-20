@@ -597,13 +597,93 @@ def build_grounded_issue_data(
             ),
         )
 
-    return GroundedIssueData(
-        relevant_evidence={
-            "issue_code": issue_code,
-        },
-        grounded_statement=(
-            "The deterministic tools detected "
-            "the configured issue "
-            f'"{issue_code}".'
-        ),
-    )
+    if issue_code == "prediction_above_reference_range":
+        predicted = source_data.get("predicted_price_per_area")
+        p90 = source_data.get("p90_price_per_area")
+        if not all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in (predicted, p90)
+        ):
+            raise IncidentBuildError("Prediction reference values are missing.")
+        return GroundedIssueData(
+            relevant_evidence={
+                "predicted_price_per_area": predicted,
+                "p90_price_per_area": p90,
+            },
+            grounded_statement=(
+                f"The predicted price per area {predicted} is above "
+                f"the regional p90 value {p90}."
+            ),
+        )
+
+    if issue_code == "sparse_location_data":
+        sample_size = source_data.get("reference_sample_size")
+        threshold = source_data.get("sparse_sample_threshold")
+        if not all(
+            isinstance(value, int) and not isinstance(value, bool)
+            for value in (sample_size, threshold)
+        ):
+            raise IncidentBuildError("Sparse reference sample values are missing.")
+        return GroundedIssueData(
+            relevant_evidence={
+                "request_location": request.location,
+                "reference_sample_size": sample_size,
+                "sparse_sample_threshold": threshold,
+            },
+            grounded_statement=(
+                f'The regional reference for "{request.location}" has '
+                f"{sample_size} samples, below the configured sparse-data "
+                f"threshold of {threshold}."
+            ),
+        )
+
+    if issue_code == "unknown_model_version":
+        return GroundedIssueData(
+            relevant_evidence={"model_version": request.model_version},
+            grounded_statement=(
+                f'The requested model version "{request.model_version}" '
+                "was not found in the model registry."
+            ),
+        )
+
+    if issue_code == "inactive_model_version":
+        return GroundedIssueData(
+            relevant_evidence={
+                "model_version": request.model_version,
+                "is_active": False,
+            },
+            grounded_statement=(
+                f'The requested model version "{request.model_version}" '
+                "is marked inactive in the model registry."
+            ),
+        )
+
+    if issue_code == "area_outside_model_range":
+        metadata = source_data.get("metadata")
+        supported_range = (
+            metadata.get("supported_area_range")
+            if isinstance(metadata, dict)
+            else None
+        )
+        if not isinstance(supported_range, (list, tuple)) or len(supported_range) != 2:
+            raise IncidentBuildError("Supported model area range is missing.")
+        return GroundedIssueData(
+            relevant_evidence={
+                "request_area": request.area,
+                "supported_area_range": supported_range,
+            },
+            grounded_statement=(
+                f"The request area {request.area} is outside the model's "
+                f"supported area range {supported_range[0]} to {supported_range[1]}."
+            ),
+        )
+
+    if issue_code == "missing_location_reference":
+        return GroundedIssueData(
+            relevant_evidence={"request_location": request.location},
+            grounded_statement=(
+                f'No regional reference data is configured for "{request.location}".'
+            ),
+        )
+
+    raise IncidentBuildError(f"No grounding rule exists for {issue_code!r}.")
