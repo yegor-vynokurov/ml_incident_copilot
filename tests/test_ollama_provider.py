@@ -1,6 +1,6 @@
 import pytest
 
-from app.schemas import IncidentReport
+from app.schemas import IssueAnalysis
 
 from app.llm.base import (
     LLMStructuredOutputError,
@@ -9,30 +9,9 @@ from app.llm.base import (
 from app.llm import OpenAIProvider, OllamaProvider
 
 class FakeStructuredMessage:
-    """Fake valid structured response."""
+    """Fake valid per-issue explanation."""
 
-    content = """
-{
-  "request_id": "REQ-1",
-  "status": "needs_review",
-  "summary": "One issue requires review.",
-  "findings": [
-    {
-      "issue_code": "road_access_conflict",
-      "explanation": "Access fields are inconsistent.",
-      "evidence_ref": {
-        "tool_name": "validate_input"
-      },
-      "possible_causes": [
-        "Incorrect source data"
-      ],
-      "recommended_checks": [
-        "Verify the source record"
-      ]
-    }
-  ]
-}
-""".strip()
+    content = '{"explanation": "Access fields are inconsistent."}'
     
 
 class FakeStructuredOllamaResponse:
@@ -69,7 +48,7 @@ class FakeStructuredOllamaClient:
 
 
 
-def test_ollama_returns_structured_report():
+def test_ollama_returns_structured_issue_analysis():
     client = FakeStructuredOllamaClient()
 
     provider = OllamaProvider(
@@ -80,25 +59,20 @@ def test_ollama_returns_structured_report():
     result = provider.generate_structured(
         system_prompt="Use verified facts.",
         user_prompt="Create a report.",
-        response_model=IncidentReport,
+        response_model=IssueAnalysis,
     )
 
     assert isinstance(
         result.parsed,
-        IncidentReport,
+        IssueAnalysis,
     )
 
-    assert result.parsed.request_id == "REQ-1"
-
-    assert (
-        result.parsed.findings[0].issue_code
-        == "road_access_conflict"
-    )
+    assert result.parsed.explanation == "Access fields are inconsistent."
 
     assert client.last_call is not None
 
     assert client.last_call["format"] == (
-        IncidentReport.model_json_schema()
+        IssueAnalysis.model_json_schema()
     )
 
     assert (
@@ -111,14 +85,7 @@ def test_ollama_returns_structured_report():
 class InvalidStructuredMessage:
     """Invalid structured response."""
 
-    content = """
-{
-  "request_id": "REQ-1",
-  "status": "wrong-status",
-  "summary": "Invalid report.",
-  "findings": "not-a-list"
-}
-""".strip()
+    content = '{"explanation": "short"}'
 
 
 class InvalidStructuredResponse:
@@ -146,5 +113,5 @@ def test_ollama_rejects_invalid_structured_output():
         provider.generate_structured(
             system_prompt="Use facts.",
             user_prompt="Create report.",
-            response_model=IncidentReport,
+            response_model=IssueAnalysis,
         )
