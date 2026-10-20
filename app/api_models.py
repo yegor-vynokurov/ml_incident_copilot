@@ -7,17 +7,8 @@ from pydantic import (
 )
 
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-)
-
-
 class HealthResponse(BaseModel):
-    """
-    Answer health endpoint.
-    """
+    """Process-level health response."""
 
     model_config = ConfigDict(
         extra="forbid",
@@ -31,9 +22,7 @@ class HealthResponse(BaseModel):
 
 
 class APIError(BaseModel):
-    """
-    Stable description of the one API-error.
-    """
+    """Stable public error details with a trace identifier."""
 
     model_config = ConfigDict(
         extra="forbid",
@@ -63,9 +52,7 @@ class APIError(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    """
-    External nut of the error. 
-    """
+    """Top-level API error envelope."""
 
     model_config = ConfigDict(
         extra="forbid",
