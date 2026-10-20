@@ -1,0 +1,9 @@
+{
+  "request_id": "EXAMPLE-001",
+  "location": "district_07",
+  "area": 8500,
+  "road_frontage": 0,
+  "is_landlocked": false,
+  "predicted_price": 12000,
+  "model_version": "district_07_v3"
+}
