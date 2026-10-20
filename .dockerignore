@@ -1,0 +1,11 @@
+.git
+.venv
+.env
+.pytest_cache
+.temp
+reports
+data/runtime
+data/evaluation/candidates.jsonl
+data/evaluation/case_drafts.json
+**/__pycache__
+**/*.pyc
