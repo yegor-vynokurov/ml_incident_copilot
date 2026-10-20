@@ -15,30 +15,6 @@ StructuredModelT = TypeVar(
 
 
 
-EXPLANATIONS_BY_ISSUE = {
-    "road_access_conflict": (
-        "The road_frontage and is_landlocked "
-        "fields are inconsistent and require "
-        "source-data review."
-    ),
-    "prediction_below_reference_range": (
-        "The prediction is below the configured "
-        "regional reference range and requires "
-        "engineering review."
-    ),
-    "unsupported_location": (
-        "The request location is not supported "
-        "by the configured regional data."
-    ),
-    "model_location_mismatch": (
-        "The selected model location does not "
-        "match the request location."
-    ),
-}
-
-
-
-
 class DeterministicEvaluationLLMProvider:
     """
     Fake provider для повторяемой
@@ -80,16 +56,7 @@ class DeterministicEvaluationLLMProvider:
             )
         )
 
-        explanation = (
-            EXPLANATIONS_BY_ISSUE.get(
-                issue_code,
-                (
-                    "The deterministic evidence "
-                    "indicates a configured issue "
-                    "that requires engineering review."
-                ),
-            )
-        )
+        explanation = self._extract_grounded_statement(user_prompt)
 
         payload = {
             "explanation": explanation,
@@ -156,3 +123,15 @@ class DeterministicEvaluationLLMProvider:
             )
 
         return issue_code
+
+    @staticmethod
+    def _extract_grounded_statement(user_prompt: str) -> str:
+        marker = "Verified grounded statement:\n"
+        if marker not in user_prompt:
+            raise RuntimeError("Grounded statement was not found in prompt.")
+        statement = user_prompt.split(marker, maxsplit=1)[1].split(
+            "\n\nTask:", maxsplit=1
+        )[0].strip()
+        if not statement:
+            raise RuntimeError("Grounded statement is empty.")
+        return statement
