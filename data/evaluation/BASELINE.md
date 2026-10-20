@@ -1,19 +1,27 @@
-# Evaluation Baseline
+# Accepted evaluation baseline
 
-Current baseline was created from three consecutive
-live evaluation runs using the local Ollama provider.
+The baseline in `baseline.json` was regenerated on 2026-10-20 after expanding
+the synthetic evaluation dataset from six to eleven cases. It records the exact
+eleven case IDs, so a release gate cannot compare rates against a different
+dataset without failing.
 
-Baseline acceptance results:
+Three consecutive live Ollama runs were accepted:
 
-- Hard pass rate: 100%
-- Quality pass rate: 100%
-- First-pass structured output rate: 100%
-- Repair rate: 0%
-- Critical case `model_location_mismatch`: 3/3 passed
+| Local report directory | Cases | Hard | Explanation quality | First pass | Repairs |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `20261020_120849` | 11 | 100% | 100% | 100% | 0 |
+| `20261020_121022` | 11 | 100% | 100% | 100% | 0 |
+| `20261020_121249` | 11 | 100% | 100% | 100% | 0 |
 
-The baseline represents the accepted quality level
-before introducing the regression/release gate.
+The critical `model_location_mismatch` case passed in all three runs. Local
+reports are generated under `reports/evaluation/` and are excluded from Git.
+The baseline can be recreated from three live `summary.json` files with:
 
-Latency is not currently used as a baseline acceptance
-metric because local Ollama timing depends on warm-up
-and machine load.
+```powershell
+python -m scripts.create_evaluation_baseline --reports <first-summary> <second-summary> <third-summary>
+```
+
+The command validates all three summaries before writing the accepted baseline.
+Latency is excluded because local Ollama timing depends on warm-up and machine
+load. This baseline is a quality threshold for a small synthetic dataset, not a
+production accuracy estimate.
