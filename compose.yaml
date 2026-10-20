@@ -1,0 +1,26 @@
+services:
+  api:
+    build: .
+    ports:
+      - "127.0.0.1:${API_PORT:-8001}:8000"
+    environment:
+      LLM_PROVIDER: ollama
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-phi4-mini:latest}
+      OLLAMA_HOST: http://host.docker.internal:11434
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-120}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+    volumes:
+      - runtime_data:/app/data/runtime
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  runtime_data:
