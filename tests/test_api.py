@@ -1,3 +1,5 @@
+import logging
+
 from fastapi.testclient import (
     TestClient,
 )
@@ -7,6 +9,7 @@ from app.llm.base import (
     LLMProviderError,
     LLMRepairExhaustedError,
 )
+from app.observability.store import JsonlRunStore
 from app.report_validation import (
     ReportGroundingError,
 )
@@ -304,6 +307,47 @@ def test_grounding_error_returns_500():
     assert "Wrong evidence tool" not in (
         response.text
     )
+
+
+def test_operational_events_are_logged_without_request_body(caplog, tmp_path):
+    store = JsonlRunStore(
+        runs_path=tmp_path / "runs.jsonl",
+        feedback_path=tmp_path / "feedback.jsonl",
+    )
+    app = create_app(agent=FakeAgent(), run_store=store)
+    payload = valid_payload()
+
+    with caplog.at_level(logging.INFO, logger="app"):
+        with TestClient(app) as client:
+            response = client.post("/v1/incidents/analyze", json=payload)
+            trace_id = response.headers["X-Trace-ID"]
+            feedback = client.post(
+                f"/v1/incidents/{trace_id}/feedback",
+                json={"verdict": "correct", "comment": "private note"},
+            )
+            invalid = client.post(
+                "/v1/incidents/analyze",
+                json={**payload, "area": 0},
+            )
+
+        failing_app = create_app(
+            agent=FakeAgent(error=LLMProviderError("Ollama is unavailable.")),
+            run_store=store,
+        )
+        with TestClient(failing_app, raise_server_exceptions=False) as client:
+            failure = client.post("/v1/incidents/analyze", json=payload)
+
+    assert response.status_code == 200
+    assert feedback.status_code == 200
+    assert invalid.status_code == 422
+    assert failure.status_code == 503
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("analysis_started" in message and trace_id in message for message in messages)
+    assert any("analysis_completed" in message and "duration_ms=" in message for message in messages)
+    assert any("feedback_recorded" in message and trace_id in message for message in messages)
+    assert any("request_rejected" in message for message in messages)
+    assert any("analysis_failed" in message and "LLMProviderError" in message for message in messages)
+    assert all("private note" not in message for message in messages)
 
 
 
