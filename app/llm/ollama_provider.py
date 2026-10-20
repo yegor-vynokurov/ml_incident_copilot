@@ -1,7 +1,9 @@
-from typing import Any
+import json
+from typing import Any, TypeVar
 
 import httpx
 from ollama import Client, ResponseError
+from pydantic import BaseModel, ValidationError
 
 from app.llm.base import (
     LLMConfigurationError,
@@ -9,17 +11,7 @@ from app.llm.base import (
     LLMProviderError,
     LLMStructuredOutputError,
 )
-from app.schemas import (
-    LLMResponse,
-    StructuredLLMResponse,
-)
-
-import json
-from typing import Any, TypeVar
-
-import httpx
-from ollama import Client, ResponseError
-from pydantic import BaseModel, ValidationError
+from app.schemas import LLMResponse, StructuredLLMResponse
 
 StructuredModelT = TypeVar(
     "StructuredModelT",
