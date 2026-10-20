@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 from app.config import load_settings
-from app.llm.openai_provider import create_llm_provider
 from app.schemas import PredictionRequest
 from app.tools.issue_search import load_known_issues
 from app.tools.model_registry import load_model_registry
