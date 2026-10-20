@@ -26,14 +26,14 @@ def test_evaluation_dataset_loads():
         DATASET_PATH
     )
 
-    assert len(cases) == 6
+    assert len(cases) == 11
 
     assert len(
         {
             case.case_id
             for case in cases
         }
-    ) == 6
+    ) == 11
 
 
 
@@ -60,12 +60,12 @@ def test_deterministic_evaluation_passes():
         ),
     )
 
-    assert summary.total_cases == 6
+    assert summary.total_cases == 11
     assert summary.failed_cases == 0
     assert summary.hard_pass_rate == 100.0
 
     # Normal case does not call LLM.
-    assert summary.cases_with_llm == 5
+    assert summary.cases_with_llm == 10
 
 
 
