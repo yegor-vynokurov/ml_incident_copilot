@@ -1,8 +1,4 @@
 from dataclasses import dataclass
-
-# from app.agent_prompts import (
-#     build_agent_prompts,
-# )
 from app.llm.base import LLMProvider
 from app.schemas import (
     AgentRun,
@@ -28,11 +24,6 @@ from app.tools.prediction_analyzer import (
 )
 
 from app.report_validation import (
-    validate_report_grounding,
-)
-
-
-from app.report_validation import (
     ReportGroundingError,
     validate_report_grounding,
 )
@@ -43,6 +34,7 @@ from app.incident_builder import (
 )
 from app.issue_analysis_prompts import (
     build_issue_analysis_prompts,
+    validate_issue_explanation,
 )
 from app.llm.repair import (
     generate_structured_with_repair,
@@ -57,9 +49,7 @@ from app.schemas import (
 
 @dataclass(frozen=True)
 class AgentDependencies:
-    """
-    All dependencies needed for agent
-    """
+    """Reference data and LLM provider required by the agent."""
 
     registry: dict[str, ModelMetadata]
 
@@ -75,10 +65,7 @@ class AgentDependencies:
 
 
 class MLIncidentAgent:
-    """
-    Policy-based agent for
-    ML prediction incidents.
-    """
+    """Run the fixed diagnostic policy for one prediction request."""
 
     def __init__(
         self,
@@ -147,7 +134,7 @@ class MLIncidentAgent:
             )
         )
 
-        # 3. Check correspondance region
+        # 3. Compare the prediction with regional reference data.
         location_supported = bool(
             validation_result.data
             .get("checks", {})
@@ -200,7 +187,7 @@ class MLIncidentAgent:
                 )
             )
 
-        # 4. Search of the known issues
+        # 4. Match detected issue codes to known issues.
         if issue_codes:
             issue_search_result = (
                 search_known_issues(
@@ -258,7 +245,7 @@ class MLIncidentAgent:
             IssueAnalysisTrace
         ] = []
 
-        # 6. Analyze one issue per LLM callе
+        # 6. Analyze one issue per LLM call.
         for context in issue_contexts:
             (
                 system_prompt,
@@ -281,6 +268,11 @@ class MLIncidentAgent:
                         IssueAnalysis
                     ),
                     max_repair_attempts=1,
+                    validate_parsed=(
+                        lambda analysis: validate_issue_explanation(
+                            context, analysis
+                        )
+                    ),
                 )
             )
 
