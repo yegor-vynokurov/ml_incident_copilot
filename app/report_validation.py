@@ -20,8 +20,9 @@ def validate_report_grounding(
     expected_issue_codes: set[str],
     steps: list[AgentStep],
 ) -> None:
-    """
-    Check sense of the structured report. Only facts.
+    """Check structured facts against tool results.
+
+    This does not validate the meaning of LLM-written explanations.
     """
 
     if report.request_id != request_id:
