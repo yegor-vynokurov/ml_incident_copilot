@@ -1,102 +1,46 @@
-from app.agent import (
-    AgentDependencies,
-    MLIncidentAgent,
-)
+"""Construct application services from bundled reference data."""
 
 from pathlib import Path
 
-from app.agent import (
-    AgentDependencies,
-    MLIncidentAgent,
-)
+from app.agent import AgentDependencies, MLIncidentAgent
 from app.config import load_settings
-from app.llm.factory import (
-    create_llm_provider,
-)
-from app.schemas import PredictionRequest
-from app.tools.issue_search import (
-    load_known_issues,
-)
-from app.tools.model_registry import (
-    load_model_registry,
-)
-from app.tools.prediction_analyzer import (
-    load_location_stats,
-)
-
 from app.llm.base import LLMProvider
+from app.llm.factory import create_llm_provider
+from app.observability.store import JsonlRunStore, RunStore
+from app.tools.issue_search import load_known_issues
+from app.tools.model_registry import load_model_registry
+from app.tools.prediction_analyzer import load_location_stats
 
 
-DATA_DIR = Path("data")
-
-
-from pathlib import Path
-
-from app.observability.store import (
-    JsonlRunStore,
-    RunStore,
-)
-
-
-
-
-
-
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
 
 
 def build_run_store() -> RunStore:
+    """Store runtime records beside the bundled data directory."""
     return JsonlRunStore(
-        runs_path=Path(
-            "data/runtime/runs.jsonl"
-        ),
-        feedback_path=Path(
-            "data/runtime/feedback.jsonl"
-        ),
+        runs_path=DATA_DIR / "runtime/runs.jsonl",
+        feedback_path=DATA_DIR / "runtime/feedback.jsonl",
     )
-
 
 
 def build_agent(
-    *,
-    llm_provider: LLMProvider | None = None,
+    *, llm_provider: LLMProvider | None = None,
 ) -> MLIncidentAgent:
-    """
-    load the agent
-    """
+    """Build an agent, optionally with an offline provider."""
+    registry = load_model_registry(DATA_DIR / "model_registry.json")
+    stats_by_location = load_location_stats(DATA_DIR / "location_stats.json")
+    known_issues = load_known_issues(DATA_DIR / "known_issues.json")
 
-
-    registry = load_model_registry(
-        DATA_DIR / "model_registry.json"
-    )
-
-    stats_by_location = load_location_stats(
-        DATA_DIR / "location_stats.json"
-    )
-
-    known_issues = load_known_issues(
-        DATA_DIR / "known_issues.json"
-    )
-
-    settings = load_settings()
-
-    provider = (
-    llm_provider
-    if llm_provider is not None
-    else create_llm_provider(
-        settings
-    )
-)
-
-
-    dependencies = AgentDependencies(
-        registry=registry,
-        stats_by_location=(
-            stats_by_location
-        ),
-        known_issues=known_issues,
-        llm_provider=provider,
-    )
+    provider = llm_provider
+    if provider is None:
+        provider = create_llm_provider(load_settings())
 
     return MLIncidentAgent(
-        dependencies
+        AgentDependencies(
+            registry=registry,
+            stats_by_location=stats_by_location,
+            known_issues=known_issues,
+            llm_provider=provider,
+        )
     )
