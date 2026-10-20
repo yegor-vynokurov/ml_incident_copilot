@@ -1,0 +1,9 @@
+{
+  "request_id": "SPARSE-EXAMPLE-001",
+  "location": "district_08",
+  "area": 5000,
+  "road_frontage": 10,
+  "is_landlocked": false,
+  "predicted_price": 25500,
+  "model_version": "district_08_v2"
+}
