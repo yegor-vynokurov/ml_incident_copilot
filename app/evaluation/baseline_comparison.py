@@ -198,6 +198,7 @@ def build_current_snapshot(
 
     return CurrentEvaluationSnapshot(
         mode=summary.mode,
+        case_ids=sorted(case.case_id for case in summary.case_results),
         metrics=CurrentEvaluationMetrics(
             hard_pass_rate=(
                 _percentage_to_fraction(
@@ -293,6 +294,13 @@ def compare_with_baseline(
     report_path: Path,
 ) -> EvaluationComparison:
     notes: list[str] = []
+
+    dataset_matches = (
+        not baseline.source.case_ids
+        or sorted(baseline.source.case_ids) == sorted(current.case_ids)
+    )
+    if not dataset_matches:
+        notes.append("Evaluation case IDs differ from the accepted baseline.")
 
     if (
         baseline.source.mode
@@ -409,6 +417,7 @@ def compare_with_baseline(
         report_path=str(
             report_path
         ),
+        dataset_matches=dataset_matches,
         metrics=(
             metric_comparisons
         ),
