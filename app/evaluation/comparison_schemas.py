@@ -77,6 +77,8 @@ class CurrentEvaluationSnapshot(BaseModel):
 
     mode: str
 
+    case_ids: list[str] = Field(default_factory=list)
+
     metrics: CurrentEvaluationMetrics
 
     critical_cases: dict[
@@ -114,6 +116,8 @@ class EvaluationComparison(BaseModel):
     current_mode: str
 
     report_path: str
+
+    dataset_matches: bool = True
 
     metrics: dict[
         str,

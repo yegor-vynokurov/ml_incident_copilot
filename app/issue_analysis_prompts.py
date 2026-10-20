@@ -3,6 +3,8 @@ import json
 from app.incident_builder import (
     IssueContext,
 )
+from app.llm.base import LLMStructuredOutputError
+from app.schemas import IssueAnalysis
 
 
 
@@ -94,3 +96,49 @@ def build_issue_analysis_prompts(
         system_prompt,
         user_prompt,
     )
+
+
+def validate_issue_explanation(
+    context: IssueContext,
+    analysis: IssueAnalysis,
+) -> None:
+    """Reject missing or contradictory facts for fragile issue types."""
+    text = analysis.explanation.lower().replace(",", "")
+    evidence = context.relevant_evidence
+    missing: list[str] = []
+
+    if context.issue_code == "sparse_location_data":
+        for key in ("reference_sample_size", "sparse_sample_threshold"):
+            if str(evidence[key]) not in text:
+                missing.append(key)
+        if not any(word in text for word in ("sample", "record")):
+            missing.append("sample or record")
+        if any(
+            phrase in text
+            for phrase in ("mismatch", "model metadata", "model location")
+        ):
+            missing.append("no unrelated model-location claim")
+
+    if context.issue_code == "prediction_above_reference_range":
+        value = evidence["predicted_price_per_area"]
+        acceptable = {str(value), f"{value:g}"}
+        if not any(candidate in text for candidate in acceptable):
+            missing.append("predicted_price_per_area")
+        if "p90" not in text and str(evidence["p90_price_per_area"]) not in text:
+            missing.append("p90 reference")
+        if not any(word in text for word in ("above", "exceed", "higher")):
+            missing.append("above-range comparison")
+        if "below" in text:
+            missing.append("no below-range claim")
+
+    if missing:
+        raise LLMStructuredOutputError(
+            "Explanation omitted or contradicted verified evidence.",
+            raw_text=analysis.model_dump_json(),
+            validation_errors=[
+                {
+                    "loc": ("explanation",),
+                    "msg": "Required: " + ", ".join(missing),
+                }
+            ],
+        )

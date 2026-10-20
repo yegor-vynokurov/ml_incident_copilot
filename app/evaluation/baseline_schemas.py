@@ -22,6 +22,8 @@ class BaselineSource(BaseModel):
         ge=1,
     )
 
+    case_ids: list[str] = Field(default_factory=list)
+
 
 class BaselineMetrics(BaseModel):
     model_config = ConfigDict(

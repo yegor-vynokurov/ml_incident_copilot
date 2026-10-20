@@ -123,14 +123,17 @@ def test_perfect_comparison_passes_gate():
     )
 
     assert result.decision == "pass"
-
-    assert (
-        result.blocking_failures
-        == []
-    )
-
+    assert result.blocking_failures == []
     assert result.warnings == []
 
+
+def test_dataset_mismatch_blocks_release():
+    comparison = _perfect_comparison().model_copy(
+        update={"dataset_matches": False}
+    )
+    result = evaluate_release_gate(comparison=comparison, policy=_policy())
+    assert result.decision == "fail"
+    assert "evaluation_dataset" in result.blocking_failures
 
 def test_hard_regression_fails_gate():
     comparison = (

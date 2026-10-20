@@ -1,6 +1,10 @@
 import logging
+import os
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from time import perf_counter
 from typing import (
     Annotated,
     Any,
@@ -27,8 +31,10 @@ from app.api_models import (
     APIError,
     ErrorResponse,
     HealthResponse,
+    IncidentFeedbackRequest,
+    IncidentFeedbackResponse,
 )
-from app.bootstrap import build_agent
+from app.bootstrap import build_agent, build_run_store
 from app.incident_builder import (
     IncidentBuildError,
 )
@@ -46,29 +52,6 @@ from app.schemas import (
     PredictionRequest,
 )
 
-from datetime import (
-    datetime,
-    timezone,
-)
-from time import perf_counter
-from uuid import uuid4
-
-from fastapi import (
-    Depends,
-    FastAPI,
-    Request,
-)
-
-from app.api_models import (
-    IncidentFeedbackRequest,
-    IncidentFeedbackResponse,
-)
-
-from app.bootstrap import (
-    build_agent,
-    build_run_store,
-)
-
 from app.observability.records import (
     build_error_run_record,
     build_success_run_record,
@@ -80,7 +63,7 @@ from app.observability.schemas import (
 
 from app.observability.store import (
     RunStore,
-    RunNotFoundError
+    RunNotFoundError,
 )
 
 
@@ -89,10 +72,25 @@ from app.observability.store import (
 logger = logging.getLogger(__name__)
 
 
+def configure_app_logging() -> None:
+    """Send application events to container stdout once per process."""
+    app_logger = logging.getLogger("app")
+    level_name = os.getenv("APP_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    app_logger.setLevel(level if isinstance(level, int) else logging.INFO)
+    app_logger.propagate = False
+
+    if any(handler.name == "incident-copilot-stdout" for handler in app_logger.handlers):
+        return
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.set_name("incident-copilot-stdout")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    app_logger.addHandler(handler)
+
+
 class AgentRunner(Protocol):
-    """
-    the iterface
-    """
+    """Minimal agent interface used by the HTTP layer."""
 
     def run(
         self,
@@ -104,9 +102,7 @@ class AgentRunner(Protocol):
 def get_agent(
     request: Request,
 ) -> AgentRunner:
-    """
-    to get the created agent from the state of fastapi app
-    """
+    """Get the agent initialized by the FastAPI lifespan."""
 
     agent = getattr(
         request.app.state,
@@ -179,10 +175,7 @@ def _create_error_response(
         | None
     ) = None,
 ) -> JSONResponse:
-    """
-    collects any API-error
-    in single format.
-    """
+    """Return an API error using the shared response schema."""
 
     response_model = ErrorResponse(
         error=APIError(
@@ -212,9 +205,7 @@ def _create_error_response(
 def _validation_error_details(
     exc: RequestValidationError,
 ) -> list[dict[str, Any]]:
-    """
-    Leave for the client only safe and useful part of pydantic errors
-    """
+    """Expose only useful, safe fields from validation errors."""
 
     details: list[
         dict[str, Any]
@@ -298,6 +289,7 @@ def create_app(
     async def lifespan(
         app: FastAPI,
     ) -> AsyncGenerator[None, None]:
+        configure_app_logging()
         app.state.agent = (
             agent
             if agent is not None
@@ -309,6 +301,8 @@ def create_app(
             if run_store is not None
             else build_run_store()
         )
+
+        logger.info("service_ready agent=%s", type(app.state.agent).__name__)
 
         yield
 
@@ -364,6 +358,12 @@ def create_app(
         request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
+        logger.warning(
+            "request_rejected trace_id=%r path=%r error_count=%d",
+            _get_trace_id(request),
+            request.url.path,
+            len(exc.errors()),
+        )
         return _create_error_response(
             request=request,
             status_code=(
@@ -396,7 +396,6 @@ def create_app(
             _get_domain_request_id(
                 request
             ),
-            exc_info=exc,
         )
 
         return _create_error_response(
@@ -426,7 +425,6 @@ def create_app(
             _get_domain_request_id(
                 request
             ),
-            exc_info=exc,
         )
 
         return _create_error_response(
@@ -457,7 +455,6 @@ def create_app(
             _get_domain_request_id(
                 request
             ),
-            exc_info=exc,
         )
 
         return _create_error_response(
@@ -487,7 +484,6 @@ def create_app(
             _get_domain_request_id(
                 request
             ),
-            exc_info=exc,
         )
 
         return _create_error_response(
@@ -602,6 +598,11 @@ def create_app(
         request: Request,
         exc: RunNotFoundError,
     ) -> JSONResponse:
+        logger.warning(
+            "feedback_run_not_found trace_id=%r requested_trace_id=%r",
+            _get_trace_id(request),
+            exc.trace_id,
+        )
         trace_id = getattr(
             request.state,
             "trace_id",
@@ -678,6 +679,11 @@ def create_app(
         trace_id = request.state.trace_id
 
         started = perf_counter()
+        logger.info(
+            "analysis_started trace_id=%r request_id=%r",
+            trace_id,
+            payload.request_id,
+        )
 
         try:
             agent_run = agent.run(
@@ -702,6 +708,14 @@ def create_app(
                 error_record
             )
 
+            logger.warning(
+                "analysis_failed trace_id=%r request_id=%r error_type=%s duration_ms=%.2f",
+                trace_id,
+                payload.request_id,
+                type(exc).__name__,
+                duration_ms,
+            )
+
             raise
 
         duration_ms = (
@@ -719,6 +733,19 @@ def create_app(
 
         run_store.append_run(
             success_record
+        )
+
+        logger.info(
+            "analysis_completed trace_id=%r request_id=%r status=%s "
+            "issue_codes=%r providers=%r models=%r llm_calls=%d duration_ms=%.2f",
+            trace_id,
+            payload.request_id,
+            agent_run.status,
+            agent_run.issue_codes,
+            success_record.providers,
+            success_record.models,
+            len(agent_run.analysis_traces),
+            duration_ms,
         )
 
         return agent_run
@@ -769,6 +796,14 @@ def create_app(
 
         run_store.append_feedback(
             record
+        )
+
+        logger.info(
+            "feedback_recorded trace_id=%r feedback_id=%r verdict=%s issue_code=%r",
+            trace_id,
+            feedback_id,
+            payload.verdict,
+            payload.issue_code,
         )
 
         return IncidentFeedbackResponse(

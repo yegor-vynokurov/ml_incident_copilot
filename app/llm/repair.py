@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import TypeVar
 
 from pydantic import BaseModel
@@ -101,12 +102,11 @@ def generate_structured_with_repair(
     user_prompt: str,
     response_model: type[StructuredModelT],
     max_repair_attempts: int = 1,
+    validate_parsed: Callable[[StructuredModelT], None] | None = None,
 ) -> StructuredLLMResponse[
     StructuredModelT
 ]:
-    """
-    Run initial structured output and limitated number of repair attempts
-    """
+    """Generate a structured response with bounded validation and repair."""
 
     if max_repair_attempts < 0:
         raise ValueError(
@@ -140,6 +140,9 @@ def generate_structured_with_repair(
                 )
             )
 
+            if validate_parsed is not None:
+                validate_parsed(response.parsed)
+
             return response.model_copy(
                 update={
                     "attempt_count": (
@@ -170,6 +173,6 @@ def generate_structured_with_repair(
 
     raise LLMRepairExhaustedError(
         "Structured LLM output remained "
-        f"invalid after {total_attempts} "
+        f"invalid or ungrounded after {total_attempts} "
         "attempts."
     ) from last_error

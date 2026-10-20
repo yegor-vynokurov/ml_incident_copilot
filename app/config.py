@@ -1,22 +1,12 @@
 import os
 from dataclasses import dataclass
-
-from dotenv import load_dotenv
-
-
-class ConfigurationError(RuntimeError):
-    """Error of the app config."""
-
-
-import os
-from dataclasses import dataclass
 from typing import Literal
 
 from dotenv import load_dotenv
 
 
 class ConfigurationError(RuntimeError):
-    """Ошибка конфигурации приложения."""
+    """Invalid application configuration."""
 
 
 @dataclass(frozen=True)

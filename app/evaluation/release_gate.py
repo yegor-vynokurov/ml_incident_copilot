@@ -270,6 +270,18 @@ def evaluate_release_gate(
         )
     )
 
+    checks.append(
+        ReleaseGateCheck(
+            name="evaluation_dataset",
+            status="pass" if comparison.dataset_matches else "fail",
+            message=(
+                "Evaluation case IDs match the accepted baseline."
+                if comparison.dataset_matches
+                else "Evaluation case IDs differ from the accepted baseline."
+            ),
+        )
+    )
+
     # 2. Blocking metrics
     for metric_name in (
         policy.blocking_metrics

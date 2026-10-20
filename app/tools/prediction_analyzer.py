@@ -147,6 +147,7 @@ def analyze_prediction(
             ),
             "price_band": price_band,
             "reference_sample_size": stats.sample_size,
+            "sparse_sample_threshold": SPARSE_SAMPLE_THRESHOLD,
             "issue_codes": issue_codes,
             "evidence": evidence,
         },

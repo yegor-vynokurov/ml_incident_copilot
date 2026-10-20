@@ -49,9 +49,7 @@ class LLMStructuredOutputError(
 class LLMRepairExhaustedError(
     LLMProviderError
 ):
-    """
-    Generation and repair attempts did not give valid structured output
-    """
+    """Generation and repair did not produce a valid, grounded response."""
 
 
 class LLMProvider(Protocol):

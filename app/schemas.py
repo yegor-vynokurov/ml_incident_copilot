@@ -7,49 +7,6 @@ from pydantic import BaseModel, Field, ConfigDict
 class PredictionRequest(BaseModel):
     request_id: str
     location: str
-    area: float = Field(gt=0)
-    road_frontage: float = Field(ge=0)
-    is_landlocked: bool
-    predicted_price: float = Field(gt=0)
-    model_version: str
-
-
-class ToolResult(BaseModel):
-    tool_name: str
-    success: bool
-    data: dict = Field(default_factory=dict)
-    errors: list[str] = Field(default_factory=list)
-
-
-class IncidentDiagnosis(BaseModel):
-    request_id: str
-
-    status: Literal["ok", "needs_review", "critical"]
-    issue_type: str
-    severity: Literal["low", "medium", "high"]
-
-    evidence: list[str]
-    possible_causes: list[str]
-    recommended_actions: list[str]
-
-    confidence: float = Field(ge=0, le=1)
-
-
-class AgentError(BaseModel):
-    status: Literal["error"] = "error"
-    error_type: str
-    message: str
-    retryable: bool
-
-
-class AgentResponse(BaseModel):
-    diagnosis: IncidentDiagnosis | None = None
-    error: AgentError | None = None
-
-
-class PredictionRequest(BaseModel):
-    request_id: str
-    location: str
 
     area: float = Field(gt=0)
     road_frontage: float = Field(ge=0)
@@ -60,12 +17,7 @@ class PredictionRequest(BaseModel):
 
 
 class ToolResult(BaseModel):
-    """
-    Universal response from any tool
-
-    success shows is the tool was success
-    found problem with data is not obviously success=False.
-    """
+    """Diagnostic result; detected issues do not imply a tool failure."""
 
     tool_name: str
     success: bool
@@ -130,13 +82,6 @@ EvidenceToolName = Literal[
     "analyze_prediction",
 ]
 
-class EvidenceReference(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-
-    tool_name: EvidenceToolName
-
 class AgentStep(BaseModel):
     """
     Note about one step of agent
@@ -155,26 +100,14 @@ class AgentStep(BaseModel):
 
 
 
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field
-
-
 class EvidenceReference(BaseModel):
-    """
-    Инструмент, который обнаружил проблему,
-    указанную в родительском finding.
-    """
+    """Diagnostic tool that produced the finding's evidence."""
 
     model_config = ConfigDict(
         extra="forbid",
     )
 
-    tool_name: Literal[
-        "validate_input",
-        "get_model_metadata",
-        "analyze_prediction",
-    ]
+    tool_name: EvidenceToolName
 
 
     
@@ -257,6 +190,13 @@ class StructuredLLMResponse(
                             )
 
 
+class IssueAnalysis(BaseModel):
+    """The explanation text supplied by the LLM for one issue."""
+
+    model_config = ConfigDict(extra="forbid")
+    explanation: str = Field(min_length=10, max_length=500)
+
+
 class IssueAnalysisTrace(BaseModel):
     """
     result of the llm-analyze for one problem.
@@ -292,22 +232,3 @@ class AgentRun(BaseModel):
     ] = Field(
         default_factory=list,
     )
-
-
-
-class IssueAnalysis(BaseModel):
-    """
-    Единственная часть finding,
-    которую создаёт LLM.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-
-    explanation: str = Field(
-        min_length=10,
-        max_length=500,
-    )
-
-

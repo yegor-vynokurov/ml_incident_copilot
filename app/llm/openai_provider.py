@@ -16,7 +16,6 @@ from app.schemas import (
     StructuredLLMResponse,
 )
 
-from app.config import Settings
 
 StructuredModelT = TypeVar(
     "StructuredModelT",
@@ -76,11 +75,7 @@ class OpenAIProvider:
         system_prompt: str,
         user_prompt: str,
     ) -> LLMResponse:
-        """
-        Send text to the model.
-
-        Return simple text now
-        """
+        """Generate an unstructured text response."""
 
         if not system_prompt.strip():
             raise ValueError(
@@ -226,18 +221,3 @@ class OpenAIProvider:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
         )
-
-
-
-
-
-
-def create_llm_provider(
-    settings: Settings,
-) -> OpenAIProvider:
-    return OpenAIProvider(
-        model=settings.openai_model,
-        api_key=settings.openai_api_key,
-        timeout_seconds=settings.llm_timeout_seconds,
-        max_retries=settings.llm_max_retries,
-    )

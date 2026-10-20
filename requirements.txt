@@ -1,7 +1,7 @@
-fastapi
-pydantic
-openai
-python-dotenv
-httpx
-httpx2
-ollama
+fastapi==0.141.1
+pydantic==2.13.4
+openai==2.49.0
+python-dotenv==1.2.2
+httpx==0.28.1
+ollama==0.6.2
+uvicorn==0.52.1
